@@ -3,13 +3,13 @@ uvicorn
 python-dotenv
 langchain
 langchain-core
-langchain-pinecone==0.2.0
+langchain-pinecone
 langchain-community
 langchain-text-splitters
 langchain-groq
 langchain-cohere
 cohere
-pinecone==5.4.2
+pinecone
 pypdf
 python-multipart
 email-validator
