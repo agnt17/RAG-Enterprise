@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import axios from "axios"
 import ReactMarkdown from "react-markdown"
 
-const API = "http://127.0.0.1:8000"
+const API = "https://rag-enterprise-backend.onrender.com"
 
 function getTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
