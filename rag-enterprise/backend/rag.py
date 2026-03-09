@@ -11,7 +11,8 @@ import os
 
 load_dotenv()
 
-store = {} # A simple Python dictionary that lives in memory while the server is running. It stores chat history — the key is a session ID string, the value is a list of messages. This is why your chat history disappears when you restart the server — it's in RAM, not a database.
+store = {} 
+# A simple Python dictionary that lives in memory (RAM) while the server is running. It stores chat history — the key is a session ID string, the value is a list of messages. This is why your chat history disappears when you restart the server — it's in RAM, not a database. For Production level, we would use a real database (redis or PostgreSQL) or persistent storage solution, but for this demo, an in-memory store is sufficient and much simpler to set up.
 
 def get_session_history(session_id: str):
     if session_id not in store:

@@ -158,7 +158,7 @@ export default function App() {
     const file = e.target.files[0]
     if (!file) return
     setUploading(true)
-    const form = new FormData()
+    const form = new FormData() // Browsers way to send files in an Http request. 
     form.append("file", file)
     try {
       await axios.post(`${API}/upload`, form)

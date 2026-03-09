@@ -13,6 +13,14 @@ import os
 
 load_dotenv()
 
+
+
+# Main work of this file is to convert the newly uploaded PDF into chunks, convert those chunks into vectors, and upload everything to Pinecone. This is the "ingest" process — taking raw data and making it ready for retrieval. The get_rag_chain() function in main.py will then connect to Pinecone and use that data to answer questions.
+# Next file is rag.py. 
+
+
+
+
 embeddings = CohereEmbeddings(
     model="embed-english-v3.0",
     cohere_api_key=os.getenv("COHERE_API_KEY")
@@ -47,5 +55,6 @@ def ingest_pdf(file_path: str):
         embeddings,
         index_name=os.getenv("PINECONE_INDEX_NAME")
     )
+    # most expensive step, it makes 1 API call per batch of chunks. 
     # This is where the magic happens. For every chunk in your list, it calls the HuggingFace model to convert the text into a vector (384 numbers), then uploads that vector + the original text + the metadata to Pinecone. This is a batch operation — it does all chunks in one go. After this line, Pinecone has your entire document stored as searchable vectors.
     return f"Ingested {len(chunks)} chunks successfully"
