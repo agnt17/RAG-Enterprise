@@ -19,8 +19,6 @@ load_dotenv()
 # Next file is rag.py. 
 
 
-
-
 embeddings = CohereEmbeddings(
     model="embed-english-v3.0",
     cohere_api_key=os.getenv("COHERE_API_KEY")
@@ -28,13 +26,14 @@ embeddings = CohereEmbeddings(
 
 #This line downloads and loads the AI model into memory. It takes ~3 seconds. If we put it inside the function, it would reload every single time someone uploads a PDF. By putting it at module level, it loads once when the server starts and stays in memory forever — much faster.
 
-def ingest_pdf(file_path: str):
+def ingest_pdf(file_path: str, namespace: str = "default"):
     pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
     index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
     try:
         stats = index.describe_index_stats()
-        if stats.total_vector_count > 0:
-            index.delete(delete_all=True)
+        ns_stats = stats.namespaces.get(namespace, None)
+        if ns_stats and ns_stats.vector_count > 0:
+            index.delete(delete_all=True, namespace=namespace)
     except Exception:
         pass
     # Creates a direct connection to Pinecone using your API key, gets a reference to your specific index, then deletes every single vector in it. This is the clean slate operation — ensures when you upload a new PDF, you're not mixing old and new document data. delete_all=True is a Pinecone parameter that wipes the entire namespace.
@@ -51,9 +50,9 @@ def ingest_pdf(file_path: str):
     #Creates the text splitter with two key settings. chunk_size=1000 means each chunk is at most 1000 characters. chunk_overlap=200 means consecutive chunks share 200 characters — this is crucial because if an answer spans across a chunk boundary, the overlap ensures neither chunk loses that context. .split_documents() takes your list of Document objects and returns a longer list of smaller Document objects — each chunk becomes its own Document, inheriting the original metadata (page number, source).
 
     PineconeVectorStore.from_documents(
-        chunks,
-        embeddings,
-        index_name=os.getenv("PINECONE_INDEX_NAME")
+        chunks, embeddings,
+        index_name=os.getenv("PINECONE_INDEX_NAME"),
+        namespace=namespace   # ← each user's data is now isolated
     )
     # most expensive step, it makes 1 API call per batch of chunks. 
     # This is where the magic happens. For every chunk in your list, it calls the HuggingFace model to convert the text into a vector (384 numbers), then uploads that vector + the original text + the metadata to Pinecone. This is a batch operation — it does all chunks in one go. After this line, Pinecone has your entire document stored as searchable vectors.

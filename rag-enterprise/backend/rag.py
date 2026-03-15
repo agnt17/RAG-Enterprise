@@ -25,10 +25,11 @@ embeddings = CohereEmbeddings(
     cohere_api_key=os.getenv("COHERE_API_KEY")
 )
 
-def get_rag_chain():
+def get_rag_chain(namespace: str = "default"):
     vectorstore = PineconeVectorStore(
         index_name=os.getenv("PINECONE_INDEX_NAME"),
-        embedding=embeddings
+        embedding=embeddings,
+        namespace=namespace
     )
 
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
