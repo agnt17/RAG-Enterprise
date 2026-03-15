@@ -3,37 +3,118 @@ from langchain_cohere import CohereEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMessageHistory
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from dotenv import load_dotenv
-import os
+from sqlalchemy.orm import Session
+import os, json, uuid
 
 load_dotenv()
 
-store = {} 
-# A simple Python dictionary that lives in memory (RAM) while the server is running. It stores chat history — the key is a session ID string, the value is a list of messages. This is why your chat history disappears when you restart the server — it's in RAM, not a database. For Production level, we would use a real database (redis or PostgreSQL) or persistent storage solution, but for this demo, an in-memory store is sufficient and much simpler to set up.
-
-def get_session_history(session_id: str):
-    if session_id not in store:
-        store[session_id] = InMemoryChatMessageHistory()
-    return store[session_id]
-# A function that either retrieves existing chat history for a session or creates a new empty history. InMemoryChatMessageHistory is a LangChain object that stores a list of HumanMessage and AIMessage objects. LangChain calls this function automatically every time you invoke the chain — it passes in the session_id you configured.
 
 embeddings = CohereEmbeddings(
     model="embed-english-v3.0",
     cohere_api_key=os.getenv("COHERE_API_KEY")
 )
 
-def get_rag_chain(namespace: str = "default"):
+# ── PostgreSQL-backed Chat History ─────────────────────────
+# This class replaces InMemoryChatMessageHistory
+# It implements the same interface LangChain expects
+# but reads and writes from your PostgreSQL database
+
+class PostgresChatMessageHistory(BaseChatMessageHistory):
+    """
+    Custom LangChain history class backed by PostgreSQL.
+    
+    LangChain calls:
+    - .messages (property) — to load history before each query
+    - .add_message(msg)    — to save each new message after query
+    - .clear()             — to wipe history (not used yet but required)
+    """
+
+    def __init__(self, db: Session, user_id: str):
+        from database import Conversation
+        self.db      = db
+        self.user_id = user_id
+        self.Conversation = Conversation
+
+        # Load or create the conversation row for this user
+        # Each user has ONE conversation row that grows over time
+        self.record = db.query(Conversation).filter(
+            Conversation.user_id == user_id
+        ).first()
+
+        if not self.record:
+            # First time this user is querying — create a fresh row
+            self.record = Conversation(
+                id       = str(uuid.uuid4()),
+                user_id  = user_id,
+                messages = "[]"  # empty JSON array
+            )
+            db.add(self.record)
+            db.commit()
+
+    @property
+    def messages(self) -> list[BaseMessage]:
+        """
+        Called by LangChain before every query.
+        Reads the JSON string from PostgreSQL and converts back to
+        LangChain message objects (HumanMessage, AIMessage).
+        """
+        raw = json.loads(self.record.messages)  # parse JSON string → list
+        result = []
+        for msg in raw:
+            if msg["type"] == "human":
+                result.append(HumanMessage(content=msg["content"]))
+            elif msg["type"] == "ai":
+                result.append(AIMessage(content=msg["content"]))
+        return result
+
+    def add_message(self, message: BaseMessage) -> None:
+        """
+        Called by LangChain after every query — once for the human
+        message and once for the AI response.
+        Converts the LangChain message object to a dict and appends
+        to the JSON array in PostgreSQL.
+        """
+        raw = json.loads(self.record.messages)  # load existing messages
+
+        # Convert LangChain message object to a simple dict
+        if isinstance(message, HumanMessage):
+            raw.append({"type": "human", "content": message.content})
+        elif isinstance(message, AIMessage):
+            raw.append({"type": "ai", "content": message.content})
+
+        # Save back to PostgreSQL as JSON string
+        self.record.messages = json.dumps(raw)
+        self.db.commit()  # persist immediately — survives server restart
+
+    def clear(self) -> None:
+        """
+        Wipes all messages for this user.
+        Called when user uploads a new document — fresh conversation.
+        """
+        self.record.messages = "[]"
+        self.db.commit()
+        
+
+
+def get_rag_chain(namespace: str, db: Session):
+    """
+    Builds and returns the full RAG chain for a specific user.
+    
+    namespace — user's Pinecone namespace (their isolated document space)
+    db        — PostgreSQL session for loading/saving chat history
+    """
     vectorstore = PineconeVectorStore(
         index_name=os.getenv("PINECONE_INDEX_NAME"),
         embedding=embeddings,
         namespace=namespace
     )
-
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-    # Converts the vector store into a "retriever" object. A retriever has one job — given a query, return relevant documents. k: 4 means return the top 4 most similar chunks. Increasing k gives more context but costs more tokens. 4 is a sweet spot for most documents.
+
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
         api_key=os.getenv("GROQ_API_KEY"),
@@ -45,26 +126,24 @@ def get_rag_chain(namespace: str = "default"):
         MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{question}"),
     ])
-    # Defines the exact structure of what gets sent to the LLM. Three parts — a system message (instructions to the AI, includes {context} which gets filled with retrieved chunks), a placeholder for chat history (previous messages get inserted here automatically), and the human message (the user's actual question). The curly brace variables get filled in at runtime.
 
     chain = (
-        RunnablePassthrough.assign(context=lambda x: retriever.invoke(x["question"]))
+        RunnablePassthrough.assign(
+            context=lambda x: retriever.invoke(x["question"])
+        )
         | prompt
         | llm
         | StrOutputParser()
     )
-    #This is LangChain's LCEL (LangChain Expression Language) — a pipeline using the | pipe operator, same concept as Unix pipes. Read it left to right:
 
-    # RunnablePassthrough.assign(context=...) — takes the input dict and adds a context key by running the retriever on the question: 
-    # | prompt — fills in the prompt template with context, chat_history, and question
-    # | llm — sends the filled prompt to Groq/LLaMA and gets a response
-    # | StrOutputParser() — extracts the text string from the LLM response object
+    # This function is called by RunnableWithMessageHistory
+    # on every invocation to get the history for this user
+    def get_history(session_id: str) -> PostgresChatMessageHistory:
+        return PostgresChatMessageHistory(db=db, user_id=session_id)
 
     return RunnableWithMessageHistory(
         chain,
-        get_session_history,
+        get_history,
         input_messages_key="question",
         history_messages_key="chat_history",
     )
-    
-    # Wraps the chain with automatic memory management. Every time you call .invoke(), it automatically calls get_session_history() to get past messages, injects them into chat_history, runs the chain, then saves the new human + AI messages back to history. You don't have to manually manage any of this.

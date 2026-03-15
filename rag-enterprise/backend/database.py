@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, Column, String, DateTime, Boolean
+from sqlalchemy import Text as SAText
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -36,6 +37,19 @@ class User(Base):
     created_at    = Column(DateTime, default=datetime.utcnow)
     last_login    = Column(DateTime, nullable=True)
 
+# ── CONVERSATION TABLE ─────────────────────────────────────
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id         = Column(String, primary_key=True)   # UUID
+    user_id    = Column(String, nullable=False, index=True)  # links to users.id
+    messages = Column(SAText, default="[]")  # JSON string of all messages
+    # We store messages as a JSON string because PostgreSQL Text column
+    # is simpler than a separate messages table for this use case.
+    # Format: [{"type": "human", "content": "..."}, {"type": "ai", "content": "..."}]
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
 def create_tables():
     # This creates all tables in PostgreSQL if they don't exist yet
     Base.metadata.create_all(bind=engine)

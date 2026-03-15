@@ -239,8 +239,10 @@ export default function App() {
         text: `"${file.name}" has been indexed. You can now ask questions about it.`,
         time: getTime()
       }])
-    } catch {
-      alert("Upload failed. Check your API keys.")
+    } catch (err) {
+      // Extract the actual error message from FastAPI's response
+      const errorMsg = err.response?.data?.detail || "Upload failed. Check your API keys."
+      alert(errorMsg)
     }
     setUploading(false)
     fileRef.current.value = ""
