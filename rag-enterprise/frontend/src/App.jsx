@@ -175,14 +175,47 @@ export default function App() {
 
   // On load: verify stored token is still valid
   // If expired → auto logout
+  // Replace your existing token verification useEffect with this
   useEffect(() => {
     if (!token) return
+
+    // Verify token AND load previous conversation simultaneously
     axios.get(`${API}/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(res => setUser(res.data))
+      .then(res => {
+        setUser(res.data)
+
+        // After confirming user is valid, load their chat history
+        return axios.get(`${API}/history`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      })
+      .then(res => {
+        const savedMessages = res.data.messages
+
+        // Only restore if there are previous messages
+        if (savedMessages && savedMessages.length > 0) {
+
+          // Convert the DB format back to our UI message format
+          // DB stores: [{type: "human", content: "..."}, {type: "ai", content: "..."}]
+          // UI needs: [{role: "user", text: "..."}, {role: "ai", text: "..."}]
+          const restored = savedMessages.map(msg => ({
+            role: msg.type === "human" ? "user" : "ai",
+            text: msg.content,
+            time: ""  // we don't store time in DB, so leave blank
+          }))
+          setMessages(restored)
+
+          // Restore the uploaded filename from localStorage
+          const savedFile = localStorage.getItem("uploadedFile")
+          if (savedFile) setUploadedFile(savedFile)
+        }
+      })
       .catch(() => {
+        // Token expired or invalid — log out
         localStorage.removeItem("token")
+        localStorage.removeItem("uploadedFile")
         setToken(null)
         setUser(null)
       })
@@ -215,6 +248,7 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem("token")
+    localStorage.removeItem("uploadedFile")
     setToken(null)
     setUser(null)
     setMessages([])
