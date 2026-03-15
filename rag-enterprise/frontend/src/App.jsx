@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import axios from "axios"
 import AuthPage from "./AuthPage"
 import ReactMarkdown from "react-markdown"
+import { ToastContainer, toast } from "./toast"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
@@ -274,14 +275,22 @@ export default function App() {
         text: `"${file.name}" has been indexed. You can now ask questions about it.`,
         time: getTime()
       }])
+      toast.success("Document indexed successfully!")  // ← replaces nothing, adds success
     } catch (err) {
-      // Extract the actual error message from FastAPI's response
-      const errorMsg = err.response?.data?.detail || "Upload failed. Check your API keys."
-      alert(errorMsg)
+      const status = err.response?.status
+      const detail = err.response?.data?.detail
+
+      if (status === 429) {
+        toast.error("Upload limit reached. Max 10 uploads per day.")
+      } else if (status === 400) {
+        toast.error(detail || "Invalid file.")         // shows exact validation message
+      } else {
+        toast.error("Upload failed. Check your connection.")
+      }
     }
     setUploading(false)
     fileRef.current.value = ""
-  }
+}
 
   // ── Query ─────────────────────────────────────────────────
   const sendMessage = async () => {
@@ -293,8 +302,13 @@ export default function App() {
     try {
       const res = await axios.post(`${API}/query`, { question: q })
       setMessages(prev => [...prev, { role: "ai", text: res.data.answer, time: getTime() }])
-    } catch {
-      setMessages(prev => [...prev, { role: "ai", text: "Something went wrong. Please try again.", time: getTime() }])
+    } catch (err) {
+      // Check if it's a rate limit error (429 = Too Many Requests)
+      const status = err.response?.status
+      const message = status === 429
+        ? "You've reached your daily limit of 20 queries. Upgrade to Pro for 500 queries/day."
+        : "Something went wrong. Please try again."
+      setMessages(prev => [...prev, { role: "ai", text: message, time: getTime() }])
     }
     setLoading(false)
   }
@@ -552,6 +566,7 @@ export default function App() {
         </p>
 
       </div>
+      <ToastContainer resolvedTheme={resolvedTheme} />
     </div>
   )
 }

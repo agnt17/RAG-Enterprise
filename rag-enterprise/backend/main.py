@@ -1,17 +1,35 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, User
 from auth import (hash_password, verify_password, create_token,
                   get_current_user, verify_google_token,
                   get_or_create_google_user)
 from ingest import ingest_pdf
-import shutil, os, uuid
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+import shutil, os, uuid, json
 from datetime import datetime
 
-create_tables()
 app = FastAPI()
+# ── Rate Limiter Setup ─────────────────────────────────────
+# get_remote_address = uses the requester's IP address as the key
+# This means limits are PER IP ADDRESS
+# Each unique IP gets its own counter
+limiter = Limiter(key_func=get_remote_address)
+
+app = FastAPI()
+
+# Register the limiter with the app
+app.state.limiter = limiter
+
+# Register the error handler — when limit is exceeded,
+# return a clean JSON error instead of a crash
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+create_tables()
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,7 +103,9 @@ def get_me(current_user: User = Depends(get_current_user)):
    
 
 @app.post("/upload")
+@limiter.limit("10/day")
 async def upload_pdf(
+    request:Request, 
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -137,15 +157,20 @@ async def upload_pdf(
 # @app.post is a decorator that registers this function as the handler for POST requests to /upload. async def makes it asynchronous — FastAPI can handle other requests while waiting for file I/O. UploadFile is FastAPI's type for incoming files — it gives you the filename, content type, and a file-like object to read from.
 
 @app.post("/query")
+@limiter.limit("20/day")
 async def query(
-    request: QueryRequest,
-    current_user: User = Depends(get_current_user), 
+    request: Request,       # ← slowapi needs this
+    req: QueryRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     from rag import get_rag_chain
-    chain = get_rag_chain(namespace=current_user.id, db=db)
+    chain = get_rag_chain(
+        namespace=current_user.id,
+        db=db
+    )
     response = chain.invoke(
-        {"question": request.question},
+        {"question": req.question},
         config={"configurable": {"session_id": current_user.id}}
     )
     return {"answer": response}
@@ -160,12 +185,7 @@ async def get_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Returns the user's full conversation history.
-    Useful if you want to show past messages on page load.
-    """
     from database import Conversation
-    import json
     record = db.query(Conversation).filter(
         Conversation.user_id == current_user.id
     ).first()
