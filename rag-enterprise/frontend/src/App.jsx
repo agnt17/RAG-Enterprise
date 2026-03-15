@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import axios from "axios"
 import AuthPage from "./AuthPage"
 import ReactMarkdown from "react-markdown"
+import { ToastContainer, toast } from "./toast"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
@@ -12,64 +13,64 @@ function getTime() {
 // ── Theme definitions ──────────────────────────────────────────────
 const themes = {
   light: {
-    page:             "bg-slate-50 text-slate-900",
-    card:             "bg-white border-slate-200 shadow-sm",
-    cardHover:        "hover:border-slate-300 hover:bg-slate-50",
-    subtext:          "text-slate-400",
-    muted:            "text-slate-500",
-    label:            "text-slate-700",
-    inputBg:          "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-slate-400 focus:bg-white",
-    msgUser:          "bg-slate-900 text-white",
-    msgAi:            "bg-slate-50 border border-slate-200 text-slate-700",
-    msgSystem:        "bg-slate-50 border border-slate-200 text-slate-400",
-    avatarUser:       "bg-slate-900 text-white",
-    avatarAi:         "bg-slate-100 text-slate-500",
-    thinkDot:         "bg-slate-400",
-    badge:            "bg-slate-100 text-slate-400",
-    divider:          "border-slate-100",
-    uploadIdle:       "border-slate-200 bg-white",
-    uploadActive:     "border-blue-200 bg-blue-50",
-    uploadDone:       "border-emerald-200 bg-emerald-50",
-    uploadIcon:       "bg-slate-100",
-    iconStroke:       "#64748b",
-    sendBtn:          "bg-slate-900 hover:bg-slate-700 text-white",
-    footerText:       "text-slate-400",
-    themeBtnBg:       "bg-white border-slate-200 shadow-sm",
-    themeBtnActive:   "bg-slate-900 text-white",
+    page: "bg-slate-50 text-slate-900",
+    card: "bg-white border-slate-200 shadow-sm",
+    cardHover: "hover:border-slate-300 hover:bg-slate-50",
+    subtext: "text-slate-400",
+    muted: "text-slate-500",
+    label: "text-slate-700",
+    inputBg: "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-slate-400 focus:bg-white",
+    msgUser: "bg-slate-900 text-white",
+    msgAi: "bg-slate-50 border border-slate-200 text-slate-700",
+    msgSystem: "bg-slate-50 border border-slate-200 text-slate-400",
+    avatarUser: "bg-slate-900 text-white",
+    avatarAi: "bg-slate-100 text-slate-500",
+    thinkDot: "bg-slate-400",
+    badge: "bg-slate-100 text-slate-400",
+    divider: "border-slate-100",
+    uploadIdle: "border-slate-200 bg-white",
+    uploadActive: "border-blue-200 bg-blue-50",
+    uploadDone: "border-emerald-200 bg-emerald-50",
+    uploadIcon: "bg-slate-100",
+    iconStroke: "#64748b",
+    sendBtn: "bg-slate-900 hover:bg-slate-700 text-white",
+    footerText: "text-slate-400",
+    themeBtnBg: "bg-white border-slate-200 shadow-sm",
+    themeBtnActive: "bg-slate-900 text-white",
     themeBtnInactive: "text-slate-500 hover:text-slate-700",
-    userMenuBg:       "bg-white border-slate-200 shadow-lg",
-    userMenuText:     "text-slate-700 hover:bg-slate-50",
-    logoutText:       "text-red-500 hover:bg-red-50",
+    userMenuBg: "bg-white border-slate-200 shadow-lg",
+    userMenuText: "text-slate-700 hover:bg-slate-50",
+    logoutText: "text-red-500 hover:bg-red-50",
   },
   dark: {
-    page:             "bg-gray-950 text-slate-100",
-    card:             "bg-gray-900 border-gray-800",
-    cardHover:        "hover:border-gray-700 hover:bg-gray-900",
-    subtext:          "text-gray-500",
-    muted:            "text-gray-400",
-    label:            "text-gray-200",
-    inputBg:          "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-600 focus:border-gray-500 focus:bg-gray-800",
-    msgUser:          "bg-blue-600 text-white",
-    msgAi:            "bg-gray-800 border border-gray-700 text-gray-200",
-    msgSystem:        "bg-gray-800 border border-gray-700 text-gray-500",
-    avatarUser:       "bg-blue-600 text-white",
-    avatarAi:         "bg-gray-800 text-gray-400",
-    thinkDot:         "bg-gray-500",
-    badge:            "bg-gray-800 text-gray-500",
-    divider:          "border-gray-800",
-    uploadIdle:       "border-gray-700 bg-gray-900",
-    uploadActive:     "border-blue-700 bg-blue-900/30",
-    uploadDone:       "border-emerald-700 bg-emerald-900/20",
-    uploadIcon:       "bg-gray-800",
-    iconStroke:       "#6b7280",
-    sendBtn:          "bg-blue-600 hover:bg-blue-500 text-white",
-    footerText:       "text-gray-600",
-    themeBtnBg:       "bg-gray-900 border-gray-700",
-    themeBtnActive:   "bg-gray-700 text-white",
+    page: "bg-gray-950 text-slate-100",
+    card: "bg-gray-900 border-gray-800",
+    cardHover: "hover:border-gray-700 hover:bg-gray-900",
+    subtext: "text-gray-500",
+    muted: "text-gray-400",
+    label: "text-gray-200",
+    inputBg: "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-600 focus:border-gray-500 focus:bg-gray-800",
+    msgUser: "bg-blue-600 text-white",
+    msgAi: "bg-gray-800 border border-gray-700 text-gray-200",
+    msgSystem: "bg-gray-800 border border-gray-700 text-gray-500",
+    avatarUser: "bg-blue-600 text-white",
+    avatarAi: "bg-gray-800 text-gray-400",
+    thinkDot: "bg-gray-500",
+    badge: "bg-gray-800 text-gray-500",
+    divider: "border-gray-800",
+    uploadIdle: "border-gray-700 bg-gray-900",
+    uploadActive: "border-blue-700 bg-blue-900/30",
+    uploadDone: "border-emerald-700 bg-emerald-900/20",
+    uploadIcon: "bg-gray-800",
+    iconStroke: "#6b7280",
+    sendBtn: "bg-blue-600 hover:bg-blue-500 text-white",
+    footerText: "text-gray-600",
+    themeBtnBg: "bg-gray-900 border-gray-700",
+    themeBtnActive: "bg-gray-700 text-white",
     themeBtnInactive: "text-gray-500 hover:text-gray-300",
-    userMenuBg:       "bg-gray-800 border-gray-700 shadow-lg",
-    userMenuText:     "text-gray-200 hover:bg-gray-700",
-    logoutText:       "text-red-400 hover:bg-red-900/30",
+    userMenuBg: "bg-gray-800 border-gray-700 shadow-lg",
+    userMenuText: "text-gray-200 hover:bg-gray-700",
+    logoutText: "text-red-400 hover:bg-red-900/30",
   },
 }
 
@@ -89,79 +90,79 @@ function useSystemTheme() {
 // ── Icons ──────────────────────────────────────────────────────────
 const SunIcon = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+    <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
   </svg>
 )
 const MoonIcon = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
   </svg>
 )
 const SystemIcon = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+    <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
   </svg>
 )
 const UploadIcon = ({ stroke }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
   </svg>
 )
 const CheckIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12"/>
+    <polyline points="20 6 9 17 4 12" />
   </svg>
 )
 const ChevronIcon = ({ stroke }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6"/>
+    <polyline points="9 18 15 12 9 6" />
   </svg>
 )
 const SendIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+    <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
   </svg>
 )
 const ChatIcon = ({ stroke }) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
   </svg>
 )
 const DocIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14,2 14,8 20,8"/>
-    <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14,2 14,8 20,8" />
+    <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
   </svg>
 )
 const LogoutIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-    <polyline points="16 17 21 12 16 7"/>
-    <line x1="21" y1="12" x2="9" y2="12"/>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
   </svg>
 )
 
 // ── Main App ───────────────────────────────────────────────────────
 export default function App() {
-  const [themeMode, setThemeMode]     = useState("system")
-  const systemIsDark                  = useSystemTheme()
-  const [messages, setMessages]       = useState([])
-  const [question, setQuestion]       = useState("")
-  const [uploading, setUploading]     = useState(false)
+  const [themeMode, setThemeMode] = useState("system")
+  const systemIsDark = useSystemTheme()
+  const [messages, setMessages] = useState([])
+  const [question, setQuestion] = useState("")
+  const [uploading, setUploading] = useState(false)
   const [uploadedFile, setUploadedFile] = useState(null)
-  const [loading, setLoading]         = useState(false)
+  const [loading, setLoading] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)   // ← user dropdown toggle
 
   // ── Auth state ────────────────────────────────────────────
   const [token, setToken] = useState(localStorage.getItem("token"))
-  const [user, setUser]   = useState(null)
+  const [user, setUser] = useState(null)
 
-  const fileRef   = useRef()
+  const fileRef = useRef()
   const bottomRef = useRef()
 
   const resolvedTheme = themeMode === "system" ? (systemIsDark ? "dark" : "light") : themeMode
@@ -179,12 +180,12 @@ export default function App() {
     axios.get(`${API}/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-    .then(res => setUser(res.data))
-    .catch(() => {
-      localStorage.removeItem("token")
-      setToken(null)
-      setUser(null)
-    })
+      .then(res => setUser(res.data))
+      .catch(() => {
+        localStorage.removeItem("token")
+        setToken(null)
+        setUser(null)
+      })
   }, [token])
 
   // Attach token to every axios request automatically
@@ -234,19 +235,28 @@ export default function App() {
     try {
       await axios.post(`${API}/upload`, form)
       setUploadedFile(file.name)
+      localStorage.setItem("uploadedFile", file.name)
       setMessages([{
         role: "system",
         text: `"${file.name}" has been indexed. You can now ask questions about it.`,
         time: getTime()
       }])
+      toast.success("Document indexed successfully!")  // ← replaces nothing, adds success
     } catch (err) {
-      // Extract the actual error message from FastAPI's response
-      const errorMsg = err.response?.data?.detail || "Upload failed. Check your API keys."
-      alert(errorMsg)
+      const status = err.response?.status
+      const detail = err.response?.data?.detail
+
+      if (status === 429) {
+        toast.error("Upload limit reached. Max 10 uploads per day.")
+      } else if (status === 400) {
+        toast.error(detail || "Invalid file.")         // shows exact validation message
+      } else {
+        toast.error("Upload failed. Check your connection.")
+      }
     }
     setUploading(false)
     fileRef.current.value = ""
-  }
+}
 
   // ── Query ─────────────────────────────────────────────────
   const sendMessage = async () => {
@@ -258,8 +268,13 @@ export default function App() {
     try {
       const res = await axios.post(`${API}/query`, { question: q })
       setMessages(prev => [...prev, { role: "ai", text: res.data.answer, time: getTime() }])
-    } catch {
-      setMessages(prev => [...prev, { role: "ai", text: "Something went wrong. Please try again.", time: getTime() }])
+    } catch (err) {
+      // Check if it's a rate limit error (429 = Too Many Requests)
+      const status = err.response?.status
+      const message = status === 429
+        ? "You've reached your daily limit of 20 queries. Upgrade to Pro for 500 queries/day."
+        : "Something went wrong. Please try again."
+      setMessages(prev => [...prev, { role: "ai", text: message, time: getTime() }])
     }
     setLoading(false)
   }
@@ -292,8 +307,8 @@ export default function App() {
             <div className={`flex items-center gap-0.5 p-1 border rounded-lg ${t.themeBtnBg} transition-colors duration-200`}>
               {[
                 { key: "system", icon: <SystemIcon />, label: "System" },
-                { key: "light",  icon: <SunIcon />,    label: "Light"  },
-                { key: "dark",   icon: <MoonIcon />,   label: "Dark"   },
+                { key: "light", icon: <SunIcon />, label: "Light" },
+                { key: "dark", icon: <MoonIcon />, label: "Dark" },
               ].map(({ key, icon, label }) => (
                 <button
                   key={key}
@@ -370,8 +385,8 @@ export default function App() {
         <div
           onClick={() => !uploading && fileRef.current.click()}
           className={`flex items-center gap-4 px-5 py-4 border rounded-xl cursor-pointer transition-all duration-200
-            ${uploading    ? t.uploadActive :
-              uploadedFile ? t.uploadDone   : `${t.uploadIdle} ${t.cardHover}`}`}
+            ${uploading ? t.uploadActive :
+              uploadedFile ? t.uploadDone : `${t.uploadIdle} ${t.cardHover}`}`}
         >
           <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={uploadPDF} />
 
@@ -379,8 +394,8 @@ export default function App() {
             ${uploading ? "bg-blue-100" : uploadedFile ? "bg-emerald-100" : t.uploadIcon}`}>
             {uploading ? (
               <svg className="animate-spin w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             ) : uploadedFile ? (
               <CheckIcon />
@@ -448,17 +463,17 @@ export default function App() {
                   )}
                   <div className={msg.role === "system" ? "w-full" : "max-w-[80%]"}>
                     <div className={`px-4 py-3 rounded-xl text-sm leading-relaxed
-                      ${msg.role === "user"   ? `${t.msgUser} rounded-tr-sm` :
+                      ${msg.role === "user" ? `${t.msgUser} rounded-tr-sm` :
                         msg.role === "system" ? t.msgSystem :
-                        `${t.msgAi} rounded-tl-sm`}`}>
+                          `${t.msgAi} rounded-tl-sm`}`}>
                       {msg.role === "ai" ? (
                         <ReactMarkdown
                           components={{
-                            p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                             strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                            ul:     ({ children }) => <ul className="list-disc list-inside space-y-1 mt-2">{children}</ul>,
-                            ol:     ({ children }) => <ol className="list-decimal list-inside space-y-1 mt-2">{children}</ol>,
-                            li:     ({ children }) => <li>{children}</li>,
+                            ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mt-2">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mt-2">{children}</ol>,
+                            li: ({ children }) => <li>{children}</li>,
                           }}
                         >
                           {msg.text}
@@ -517,6 +532,7 @@ export default function App() {
         </p>
 
       </div>
+      <ToastContainer resolvedTheme={resolvedTheme} />
     </div>
   )
 }
