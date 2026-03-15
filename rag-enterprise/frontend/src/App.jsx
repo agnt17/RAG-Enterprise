@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react"
 import axios from "axios"
+import AuthPage from "./AuthPage"
 import ReactMarkdown from "react-markdown"
 
-const API = "https://rag-enterprise-backend.onrender.com"
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
 function getTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -11,58 +12,64 @@ function getTime() {
 // ── Theme definitions ──────────────────────────────────────────────
 const themes = {
   light: {
-    page:        "bg-slate-50 text-slate-900",
-    card:        "bg-white border-slate-200 shadow-sm",
-    cardHover:   "hover:border-slate-300 hover:bg-slate-50",
-    subtext:     "text-slate-400",
-    muted:       "text-slate-500",
-    label:       "text-slate-700",
-    inputBg:     "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-slate-400 focus:bg-white",
-    msgUser:     "bg-slate-900 text-white",
-    msgAi:       "bg-slate-50 border border-slate-200 text-slate-700",
-    msgSystem:   "bg-slate-50 border border-slate-200 text-slate-400",
-    avatarUser:  "bg-slate-900 text-white",
-    avatarAi:    "bg-slate-100 text-slate-500",
-    thinkDot:    "bg-slate-400",
-    badge:       "bg-slate-100 text-slate-400",
-    divider:     "border-slate-100",
-    uploadIdle:  "border-slate-200 bg-white",
-    uploadActive:"border-blue-200 bg-blue-50",
-    uploadDone:  "border-emerald-200 bg-emerald-50",
-    uploadIcon:  "bg-slate-100",
-    iconStroke:  "#64748b",
-    sendBtn:     "bg-slate-900 hover:bg-slate-700 text-white",
-    footerText:  "text-slate-400",
-    themeBtnBg:  "bg-white border-slate-200 shadow-sm",
-    themeBtnActive: "bg-slate-900 text-white",
+    page:             "bg-slate-50 text-slate-900",
+    card:             "bg-white border-slate-200 shadow-sm",
+    cardHover:        "hover:border-slate-300 hover:bg-slate-50",
+    subtext:          "text-slate-400",
+    muted:            "text-slate-500",
+    label:            "text-slate-700",
+    inputBg:          "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-slate-400 focus:bg-white",
+    msgUser:          "bg-slate-900 text-white",
+    msgAi:            "bg-slate-50 border border-slate-200 text-slate-700",
+    msgSystem:        "bg-slate-50 border border-slate-200 text-slate-400",
+    avatarUser:       "bg-slate-900 text-white",
+    avatarAi:         "bg-slate-100 text-slate-500",
+    thinkDot:         "bg-slate-400",
+    badge:            "bg-slate-100 text-slate-400",
+    divider:          "border-slate-100",
+    uploadIdle:       "border-slate-200 bg-white",
+    uploadActive:     "border-blue-200 bg-blue-50",
+    uploadDone:       "border-emerald-200 bg-emerald-50",
+    uploadIcon:       "bg-slate-100",
+    iconStroke:       "#64748b",
+    sendBtn:          "bg-slate-900 hover:bg-slate-700 text-white",
+    footerText:       "text-slate-400",
+    themeBtnBg:       "bg-white border-slate-200 shadow-sm",
+    themeBtnActive:   "bg-slate-900 text-white",
     themeBtnInactive: "text-slate-500 hover:text-slate-700",
+    userMenuBg:       "bg-white border-slate-200 shadow-lg",
+    userMenuText:     "text-slate-700 hover:bg-slate-50",
+    logoutText:       "text-red-500 hover:bg-red-50",
   },
   dark: {
-    page:        "bg-gray-950 text-slate-100",
-    card:        "bg-gray-900 border-gray-800",
-    cardHover:   "hover:border-gray-700 hover:bg-gray-900",
-    subtext:     "text-gray-500",
-    muted:       "text-gray-400",
-    label:       "text-gray-200",
-    inputBg:     "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-600 focus:border-gray-500 focus:bg-gray-800",
-    msgUser:     "bg-blue-600 text-white",
-    msgAi:       "bg-gray-800 border border-gray-700 text-gray-200",
-    msgSystem:   "bg-gray-800 border border-gray-700 text-gray-500",
-    avatarUser:  "bg-blue-600 text-white",
-    avatarAi:    "bg-gray-800 text-gray-400",
-    thinkDot:    "bg-gray-500",
-    badge:       "bg-gray-800 text-gray-500",
-    divider:     "border-gray-800",
-    uploadIdle:  "border-gray-700 bg-gray-900",
-    uploadActive:"border-blue-700 bg-blue-900/30",
-    uploadDone:  "border-emerald-700 bg-emerald-900/20",
-    uploadIcon:  "bg-gray-800",
-    iconStroke:  "#6b7280",
-    sendBtn:     "bg-blue-600 hover:bg-blue-500 text-white",
-    footerText:  "text-gray-600",
-    themeBtnBg:  "bg-gray-900 border-gray-700",
-    themeBtnActive: "bg-gray-700 text-white",
+    page:             "bg-gray-950 text-slate-100",
+    card:             "bg-gray-900 border-gray-800",
+    cardHover:        "hover:border-gray-700 hover:bg-gray-900",
+    subtext:          "text-gray-500",
+    muted:            "text-gray-400",
+    label:            "text-gray-200",
+    inputBg:          "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-600 focus:border-gray-500 focus:bg-gray-800",
+    msgUser:          "bg-blue-600 text-white",
+    msgAi:            "bg-gray-800 border border-gray-700 text-gray-200",
+    msgSystem:        "bg-gray-800 border border-gray-700 text-gray-500",
+    avatarUser:       "bg-blue-600 text-white",
+    avatarAi:         "bg-gray-800 text-gray-400",
+    thinkDot:         "bg-gray-500",
+    badge:            "bg-gray-800 text-gray-500",
+    divider:          "border-gray-800",
+    uploadIdle:       "border-gray-700 bg-gray-900",
+    uploadActive:     "border-blue-700 bg-blue-900/30",
+    uploadDone:       "border-emerald-700 bg-emerald-900/20",
+    uploadIcon:       "bg-gray-800",
+    iconStroke:       "#6b7280",
+    sendBtn:          "bg-blue-600 hover:bg-blue-500 text-white",
+    footerText:       "text-gray-600",
+    themeBtnBg:       "bg-gray-900 border-gray-700",
+    themeBtnActive:   "bg-gray-700 text-white",
     themeBtnInactive: "text-gray-500 hover:text-gray-300",
+    userMenuBg:       "bg-gray-800 border-gray-700 shadow-lg",
+    userMenuText:     "text-gray-200 hover:bg-gray-700",
+    logoutText:       "text-red-400 hover:bg-red-900/30",
   },
 }
 
@@ -80,8 +87,8 @@ function useSystemTheme() {
 }
 
 // ── Icons ──────────────────────────────────────────────────────────
-const SunIcon = ({ size = 14, stroke }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const SunIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
     <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
     <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
@@ -131,39 +138,107 @@ const DocIcon = () => (
     <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
   </svg>
 )
+const LogoutIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+    <polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+)
 
-// ── Main Component ─────────────────────────────────────────────────
+// ── Main App ───────────────────────────────────────────────────────
 export default function App() {
-  const [themeMode, setThemeMode] = useState("system") // "system" | "light" | "dark"
-  const systemIsDark = useSystemTheme()
-  const [messages, setMessages] = useState([])
-  const [question, setQuestion] = useState("")
-  const [uploading, setUploading] = useState(false)
+  const [themeMode, setThemeMode]     = useState("system")
+  const systemIsDark                  = useSystemTheme()
+  const [messages, setMessages]       = useState([])
+  const [question, setQuestion]       = useState("")
+  const [uploading, setUploading]     = useState(false)
   const [uploadedFile, setUploadedFile] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const fileRef = useRef()
+  const [loading, setLoading]         = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)   // ← user dropdown toggle
+
+  // ── Auth state ────────────────────────────────────────────
+  const [token, setToken] = useState(localStorage.getItem("token"))
+  const [user, setUser]   = useState(null)
+
+  const fileRef   = useRef()
   const bottomRef = useRef()
 
-  // Resolve which theme to actually use
-  const resolvedTheme = themeMode === "system"
-    ? (systemIsDark ? "dark" : "light")
-    : themeMode
+  const resolvedTheme = themeMode === "system" ? (systemIsDark ? "dark" : "light") : themeMode
   const t = themes[resolvedTheme]
 
+  // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // On load: verify stored token is still valid
+  // If expired → auto logout
+  useEffect(() => {
+    if (!token) return
+    axios.get(`${API}/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(res => setUser(res.data))
+    .catch(() => {
+      localStorage.removeItem("token")
+      setToken(null)
+      setUser(null)
+    })
+  }, [token])
+
+  // Attach token to every axios request automatically
+  // So you don't have to add headers manually in uploadPDF or sendMessage
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
+    } else {
+      delete axios.defaults.headers.common["Authorization"]
+    }
+  }, [token])
+
+  // Close user menu when clicking anywhere outside
+  useEffect(() => {
+    if (!showUserMenu) return
+    const close = () => setShowUserMenu(false)
+    window.addEventListener("click", close)
+    return () => window.removeEventListener("click", close)
+  }, [showUserMenu])
+
+  // ── Auth handlers ─────────────────────────────────────────
+  const handleLogin = (newToken, userData) => {
+    localStorage.setItem("token", newToken)
+    setToken(newToken)
+    setUser(userData)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("token")
+    setToken(null)
+    setUser(null)
+    setMessages([])
+    setUploadedFile(null)
+    setShowUserMenu(false)
+  }
+
+  // ── If not logged in → show AuthPage ─────────────────────
+  if (!token) return <AuthPage onLogin={handleLogin} />
+
+  // ── Upload ────────────────────────────────────────────────
   const uploadPDF = async (e) => {
     const file = e.target.files[0]
     if (!file) return
     setUploading(true)
-    const form = new FormData() // Browsers way to send files in an Http request. 
+    const form = new FormData()
     form.append("file", file)
     try {
       await axios.post(`${API}/upload`, form)
       setUploadedFile(file.name)
-      setMessages([{ role: "system", text: `"${file.name}" has been indexed. You can now ask questions about it.`, time: getTime() }])
+      setMessages([{
+        role: "system",
+        text: `"${file.name}" has been indexed. You can now ask questions about it.`,
+        time: getTime()
+      }])
     } catch {
       alert("Upload failed. Check your API keys.")
     }
@@ -171,6 +246,7 @@ export default function App() {
     fileRef.current.value = ""
   }
 
+  // ── Query ─────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!question.trim() || loading) return
     const q = question.trim()
@@ -188,51 +264,112 @@ export default function App() {
 
   const userMsgCount = messages.filter(m => m.role === "user").length
 
+  // ── Render ────────────────────────────────────────────────
   return (
     <div className={`min-h-screen ${t.page} flex flex-col items-center justify-center px-4 py-6 transition-colors duration-200`}>
       <div className="w-full max-w-2xl flex flex-col gap-3 h-screen max-h-[800px]">
 
         {/* ── Header ── */}
         <div className={`flex items-center justify-between px-5 py-3.5 ${t.card} border rounded-xl transition-colors duration-200`}>
+
+          {/* Left — Logo */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
               <DocIcon />
             </div>
             <div>
-              <span className={`font-semibold text-sm tracking-tight`}>DocMind AI</span>
+              <span className="font-semibold text-sm tracking-tight">DocMind AI</span>
               <span className={`${t.subtext} text-xs ml-2`}>Document Intelligence</span>
             </div>
           </div>
 
-          {/* Theme Switcher */}
-          <div className={`flex items-center gap-0.5 p-1 border rounded-lg ${t.themeBtnBg} transition-colors duration-200`}>
-            {[
-              { key: "system", icon: <SystemIcon />, label: "System" },
-              { key: "light",  icon: <SunIcon />,    label: "Light" },
-              { key: "dark",   icon: <MoonIcon />,   label: "Dark" },
-            ].map(({ key, icon, label }) => (
+          {/* Right — Theme switcher + User avatar */}
+          <div className="flex items-center gap-2">
+
+            {/* Theme Switcher — unchanged from your original */}
+            <div className={`flex items-center gap-0.5 p-1 border rounded-lg ${t.themeBtnBg} transition-colors duration-200`}>
+              {[
+                { key: "system", icon: <SystemIcon />, label: "System" },
+                { key: "light",  icon: <SunIcon />,    label: "Light"  },
+                { key: "dark",   icon: <MoonIcon />,   label: "Dark"   },
+              ].map(({ key, icon, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setThemeMode(key)}
+                  title={label}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150
+                    ${themeMode === key ? t.themeBtnActive : t.themeBtnInactive}`}
+                >
+                  {icon}
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* User Avatar + Dropdown */}
+            <div className="relative">
               <button
-                key={key}
-                onClick={() => setThemeMode(key)}
-                title={label}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150
-                  ${themeMode === key
-                    ? t.themeBtnActive
-                    : t.themeBtnInactive}`}
+                onClick={e => { e.stopPropagation(); setShowUserMenu(v => !v) }}
+                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-white/5 transition-all"
+                title={user?.email || "Account"}
               >
-                {icon}
-                <span className="hidden sm:inline">{label}</span>
+                {/* Avatar — shows Google picture if available, otherwise initials */}
+                {user?.picture ? (
+                  <img
+                    src={user.picture}
+                    alt="avatar"
+                    className="w-7 h-7 rounded-full object-cover border border-white/10"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                    {(user?.name || user?.email || "U")[0].toUpperCase()}
+                  </div>
+                )}
+                <span className={`text-xs font-medium ${t.muted} hidden sm:block max-w-[100px] truncate`}>
+                  {user?.name || user?.email?.split("@")[0] || "Account"}
+                </span>
               </button>
-            ))}
+
+              {/* Dropdown menu */}
+              {showUserMenu && (
+                <div
+                  className={`absolute right-0 top-10 w-52 border rounded-xl overflow-hidden z-50 ${t.userMenuBg}`}
+                  onClick={e => e.stopPropagation()}
+                >
+                  {/* User info */}
+                  <div className={`px-4 py-3 border-b ${t.divider}`}>
+                    <p className={`text-xs font-semibold ${t.label} truncate`}>
+                      {user?.name || "User"}
+                    </p>
+                    <p className={`text-xs ${t.subtext} truncate mt-0.5`}>
+                      {user?.email}
+                    </p>
+                    <span className="inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-mono">
+                      {user?.plan || "free"} plan
+                    </span>
+                  </div>
+
+                  {/* Logout */}
+                  <button
+                    onClick={handleLogout}
+                    className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium transition-colors ${t.logoutText}`}
+                  >
+                    <LogoutIcon />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
-        {/* ── Upload Zone ── */}
+        {/* ── Upload Zone — completely unchanged ── */}
         <div
           onClick={() => !uploading && fileRef.current.click()}
           className={`flex items-center gap-4 px-5 py-4 border rounded-xl cursor-pointer transition-all duration-200
-            ${uploading  ? t.uploadActive :
-              uploadedFile ? t.uploadDone  : `${t.uploadIdle} ${t.cardHover}`}`}
+            ${uploading    ? t.uploadActive :
+              uploadedFile ? t.uploadDone   : `${t.uploadIdle} ${t.cardHover}`}`}
         >
           <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={uploadPDF} />
 
@@ -275,10 +412,9 @@ export default function App() {
           {!uploading && <ChevronIcon stroke={t.iconStroke} />}
         </div>
 
-        {/* ── Chat Container ── */}
+        {/* ── Chat Container — completely unchanged ── */}
         <div className={`flex-1 flex flex-col ${t.card} border rounded-xl overflow-hidden min-h-0 transition-colors duration-200`}>
 
-          {/* Chat Header */}
           <div className={`flex items-center justify-between px-5 py-3 border-b ${t.divider} flex-shrink-0`}>
             <span className={`text-xs font-semibold ${t.subtext} tracking-wider uppercase`}>Conversation</span>
             {userMsgCount > 0 && (
@@ -288,7 +424,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5 min-h-0">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 h-full text-center py-16">
@@ -306,7 +441,7 @@ export default function App() {
                   {msg.role !== "system" && (
                     <div className={`w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-semibold mt-0.5
                       ${msg.role === "user" ? t.avatarUser : t.avatarAi}`}>
-                      {msg.role === "user" ? "U" : "AI"}
+                      {msg.role === "user" ? (user?.name?.[0]?.toUpperCase() || "U") : "AI"}
                     </div>
                   )}
                   <div className={msg.role === "system" ? "w-full" : "max-w-[80%]"}>
@@ -355,7 +490,6 @@ export default function App() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
           <div className={`px-4 py-3 border-t ${t.divider} flex gap-2 items-center flex-shrink-0`}>
             <input
               className={`flex-1 border rounded-lg px-4 py-2.5 text-sm outline-none transition-all ${t.inputBg}`}
