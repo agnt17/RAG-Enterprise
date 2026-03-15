@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import axios from "axios"
 import AuthPage from "./AuthPage"
 import ReactMarkdown from "react-markdown"
-import { ToastContainer, toast } from "./toast"
+import { ToastContainer, toast } from "./Toast"
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
