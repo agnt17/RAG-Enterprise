@@ -35,7 +35,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://rag-enterprise.vercel.app"
+        "https://rag-enterprise.vercel.app",
+        "https://*.vercel.app"  # Allow any vercel.app subdomain
     ],
     allow_credentials=False,
     allow_methods=["*"],
