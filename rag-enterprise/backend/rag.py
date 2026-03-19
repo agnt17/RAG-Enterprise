@@ -3,7 +3,7 @@ from langchain_cohere import CohereEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMessageHistory
+from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
@@ -25,45 +25,33 @@ embeddings = CohereEmbeddings(
 # but reads and writes from your PostgreSQL database
 
 class PostgresChatMessageHistory(BaseChatMessageHistory):
-    """
-    Custom LangChain history class backed by PostgreSQL.
-    
-    LangChain calls:
-    - .messages (property) — to load history before each query
-    - .add_message(msg)    — to save each new message after query
-    - .clear()             — to wipe history (not used yet but required)
-    """
 
-    def __init__(self, db: Session, user_id: str):
+    def __init__(self, db: Session, user_id: str, document_id: str):
         from database import Conversation
-        self.db      = db
-        self.user_id = user_id
-        self.Conversation = Conversation
+        self.db          = db
+        self.user_id     = user_id
+        self.document_id = document_id
 
-        # Load or create the conversation row for this user
-        # Each user has ONE conversation row that grows over time
+        # Find existing conversation for this specific document
         self.record = db.query(Conversation).filter(
-            Conversation.user_id == user_id
+            Conversation.user_id     == user_id,
+            Conversation.document_id == document_id   # ← scoped to document
         ).first()
 
         if not self.record:
-            # First time this user is querying — create a fresh row
+            # First time chatting about this document
             self.record = Conversation(
-                id       = str(uuid.uuid4()),
-                user_id  = user_id,
-                messages = "[]"  # empty JSON array
+                id          = str(uuid.uuid4()),
+                user_id     = user_id,
+                document_id = document_id,
+                messages    = "[]"
             )
             db.add(self.record)
             db.commit()
 
     @property
     def messages(self) -> list[BaseMessage]:
-        """
-        Called by LangChain before every query.
-        Reads the JSON string from PostgreSQL and converts back to
-        LangChain message objects (HumanMessage, AIMessage).
-        """
-        raw = json.loads(self.record.messages)  # parse JSON string → list
+        raw = json.loads(self.record.messages)
         result = []
         for msg in raw:
             if msg["type"] == "human":
@@ -73,45 +61,31 @@ class PostgresChatMessageHistory(BaseChatMessageHistory):
         return result
 
     def add_message(self, message: BaseMessage) -> None:
-        """
-        Called by LangChain after every query — once for the human
-        message and once for the AI response.
-        Converts the LangChain message object to a dict and appends
-        to the JSON array in PostgreSQL.
-        """
-        raw = json.loads(self.record.messages)  # load existing messages
-
-        # Convert LangChain message object to a simple dict
+        raw = json.loads(self.record.messages)
         if isinstance(message, HumanMessage):
             raw.append({"type": "human", "content": message.content})
         elif isinstance(message, AIMessage):
             raw.append({"type": "ai", "content": message.content})
-
-        # Save back to PostgreSQL as JSON string
         self.record.messages = json.dumps(raw)
-        self.db.commit()  # persist immediately — survives server restart
+        self.db.commit()
 
     def clear(self) -> None:
-        """
-        Wipes all messages for this user.
-        Called when user uploads a new document — fresh conversation.
-        """
         self.record.messages = "[]"
         self.db.commit()
         
 
 
-def get_rag_chain(namespace: str, db: Session):
+def get_rag_chain(namespace: str, db: Session, user_id: str, document_id: str):
     """
-    Builds and returns the full RAG chain for a specific user.
-    
-    namespace — user's Pinecone namespace (their isolated document space)
-    db        — PostgreSQL session for loading/saving chat history
+    namespace   — document.id (Pinecone namespace for this document's vectors)
+    db          — PostgreSQL session
+    user_id     — for scoping the conversation
+    document_id — for loading this document's specific conversation
     """
     vectorstore = PineconeVectorStore(
         index_name=os.getenv("PINECONE_INDEX_NAME"),
         embedding=embeddings,
-        namespace=namespace
+        namespace=namespace   # searches ONLY this document's vectors
     )
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
@@ -136,10 +110,12 @@ def get_rag_chain(namespace: str, db: Session):
         | StrOutputParser()
     )
 
-    # This function is called by RunnableWithMessageHistory
-    # on every invocation to get the history for this user
     def get_history(session_id: str) -> PostgresChatMessageHistory:
-        return PostgresChatMessageHistory(db=db, user_id=session_id)
+        return PostgresChatMessageHistory(
+            db=db,
+            user_id=user_id,
+            document_id=document_id
+        )
 
     return RunnableWithMessageHistory(
         chain,
