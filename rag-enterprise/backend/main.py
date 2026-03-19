@@ -1,9 +1,8 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, User
+from database import get_db, create_tables, User, Document, Conversation
 from auth import (hash_password, verify_password, create_token,
                   get_current_user, verify_google_token,
                   get_or_create_google_user)
@@ -11,24 +10,15 @@ from ingest import ingest_pdf
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-import shutil, os, uuid, json
+import os, uuid, json
 from datetime import datetime
 
-app = FastAPI()
-# ── Rate Limiter Setup ─────────────────────────────────────
-# get_remote_address = uses the requester's IP address as the key
-# This means limits are PER IP ADDRESS
-# Each unique IP gets its own counter
+# ── App setup ──────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address)
-
-app = FastAPI()
-
-# Register the limiter with the app
+app     = FastAPI()   # ← only ONE instance
 app.state.limiter = limiter
-
-# Register the error handler — when limit is exceeded,
-# return a clean JSON error instead of a crash
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 create_tables()
 
 app.add_middleware(
@@ -36,16 +26,13 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://rag-enterprise.vercel.app",
-        "https://*.vercel.app"  # Allow any vercel.app subdomain
     ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# CORS (Cross-Origin Resource Sharing) is a browser security feature. When your React app at localhost:5173 makes a request to localhost:8000, the browser blocks it by default because they're on different ports. This middleware tells FastAPI to add headers saying "yes, requests from 5173 are allowed." Without this, your frontend gets a CORS error even though both are on your machine.
-
-
+# ── Request Models ─────────────────────────────────────────
 class RegisterRequest(BaseModel):
     email: str
     password: str
@@ -56,15 +43,14 @@ class LoginRequest(BaseModel):
     password: str
 
 class GoogleAuthRequest(BaseModel):
-    token: str   # the ID token Google gives the frontend
+    token: str
 
 class QueryRequest(BaseModel):
     question: str
-    
 
+# ── Auth Endpoints ─────────────────────────────────────────
 @app.post("/register")
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    # Check if email already taken
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     user = User(
@@ -98,98 +84,218 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
 
 @app.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
-    # Returns current logged-in user's info
-    return {"email": current_user.email, "name": current_user.name,
-            "picture": current_user.picture, "plan": current_user.plan}
-   
+    return {
+        "email":   current_user.email,
+        "name":    current_user.name,
+        "picture": current_user.picture,
+        "plan":    current_user.plan
+    }
 
+# ── Upload ─────────────────────────────────────────────────
 @app.post("/upload")
 @limiter.limit("10/day")
 async def upload_pdf(
-    request:Request, 
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # ── Validation 1: File type ──────────────────────────
-    # content_type is the MIME type the browser sends
-    # application/pdf is the standard MIME type for PDF files
+    # Validation 1 — file type
     if file.content_type != "application/pdf":
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are allowed. Please upload a .pdf file."
-        )
+        raise HTTPException(400, "Only PDF files are allowed.")
 
-    # ── Validation 2: File size ──────────────────────────
-    # Read entire file into memory to check size
-    # 1MB = 1024 * 1024 bytes, so 25MB = 25 * 1024 * 1024
+    # Validation 2 — file size
     contents = await file.read()
     if len(contents) > 25 * 1024 * 1024:
-        raise HTTPException(
-            status_code=400,
-            detail="File too large. Maximum allowed size is 25MB."
-        )
+        raise HTTPException(400, "File too large. Maximum size is 25MB.")
 
-    # ── Validation 3: Actually a PDF (magic bytes check) ─
-    # First 4 bytes of every valid PDF are always "%PDF"
-    # This catches renamed files — e.g. virus.exe renamed to file.pdf
+    # Validation 3 — magic bytes
     if not contents.startswith(b"%PDF"):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid PDF file. File appears to be corrupted or not a real PDF."
-        )
+        raise HTTPException(400, "Invalid PDF file. File appears corrupted.")
 
-    # ── Save file to disk ────────────────────────────────
-    # After reading contents above, file cursor is at the end
-    # We write contents directly instead of using shutil
-    file_path = f"uploads/{current_user.id}_{file.filename}"
+    # Save to disk
+    doc_id    = str(uuid.uuid4())   # ← document gets its own unique ID
+    file_path = f"uploads/{doc_id}_{file.filename}"
     os.makedirs("uploads", exist_ok=True)
     with open(file_path, "wb") as buffer:
-        buffer.write(contents)  # write the bytes we already read
+        buffer.write(contents)
 
-    # Clear old conversation history for this user
-    from rag import PostgresChatMessageHistory
-    history = PostgresChatMessageHistory(db=db, user_id=current_user.id)
-    history.clear()
+    # Deactivate all previous documents for this user
+    # Old conversations are PRESERVED — just no longer active
+    all_docs = db.query(Document).filter(
+        Document.user_id == current_user.id
+    ).all()
+    for old_doc in all_docs:
+        old_doc.is_active = False
+    db.commit()
 
-    result = ingest_pdf(file_path, namespace=current_user.id)
-    return {"message": result}
+    # Create new document record
+    # namespace = doc_id so each document has completely isolated Pinecone vectors
+    doc = Document(
+        id          = doc_id,
+        user_id     = current_user.id,
+        filename    = file.filename,
+        file_path   = file_path,
+        file_size   = str(len(contents)),
+        chunk_count = 0,
+        is_active   = True
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
 
-# @app.post is a decorator that registers this function as the handler for POST requests to /upload. async def makes it asynchronous — FastAPI can handle other requests while waiting for file I/O. UploadFile is FastAPI's type for incoming files — it gives you the filename, content type, and a file-like object to read from.
+    # Ingest into THIS document's own Pinecone namespace
+    # namespace = doc_id (not user_id anymore)
+    result = ingest_pdf(file_path, namespace=doc_id)
 
+    return {
+        "message":     result,
+        "filename":    file.filename,
+        "document_id": doc_id        # ← send back to frontend
+    }
+
+
+# ── Query ──────────────────────────────────────────────────
 @app.post("/query")
 @limiter.limit("20/day")
 async def query(
-    request: Request,       # ← slowapi needs this
+    request: Request,
     req: QueryRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Find the active document for this user
+    active_doc = db.query(Document).filter(
+        Document.user_id  == current_user.id,
+        Document.is_active == True
+    ).first()
+
+    if not active_doc:
+        raise HTTPException(400, "No document uploaded. Please upload a PDF first.")
+
     from rag import get_rag_chain
     chain = get_rag_chain(
-        namespace=current_user.id,
-        db=db
+        namespace   = active_doc.id,     # search only this document's vectors
+        db          = db,
+        user_id     = current_user.id,
+        document_id = active_doc.id      # load this document's conversation
     )
+
     response = chain.invoke(
         {"question": req.question},
-        config={"configurable": {"session_id": current_user.id}}
+        config={"configurable": {"session_id": active_doc.id}}
     )
     return {"answer": response}
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
 
-
+# ── History ────────────────────────────────────────────────
 @app.get("/history")
 async def get_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from database import Conversation
-    record = db.query(Conversation).filter(
-        Conversation.user_id == current_user.id
+    # Get the currently active document
+    active_doc = db.query(Document).filter(
+        Document.user_id  == current_user.id,
+        Document.is_active == True
     ).first()
-    if not record:
-        return {"messages": []}
-    return {"messages": json.loads(record.messages)}
+
+    if not active_doc:
+        return {"messages": [], "document": None}
+
+    # Get this document's specific conversation
+    record = db.query(Conversation).filter(
+        Conversation.user_id     == current_user.id,
+        Conversation.document_id == active_doc.id    # ← scoped to document
+    ).first()
+
+    messages = []
+    if record:
+        messages = json.loads(record.messages)
+
+    return {
+        "messages": messages,
+        "document": {
+            "id":          active_doc.id,
+            "filename":    active_doc.filename,
+            "uploaded_at": active_doc.uploaded_at.isoformat(),
+            "file_size":   active_doc.file_size
+        }
+    }
+
+
+# ── Documents list ─────────────────────────────────────────
+@app.get("/documents")
+async def get_documents(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Returns all documents this user has ever uploaded
+    # Ordered by most recent first
+    docs = db.query(Document).filter(
+        Document.user_id == current_user.id
+    ).order_by(Document.uploaded_at.desc()).all()
+
+    return {
+        "documents": [
+            {
+                "id":          d.id,
+                "filename":    d.filename,
+                "uploaded_at": d.uploaded_at.isoformat(),
+                "file_size":   d.file_size,
+                "is_active":   d.is_active
+            }
+            for d in docs
+        ]
+    }
+
+
+# ── Switch active document ─────────────────────────────────
+@app.post("/documents/{document_id}/activate")
+async def activate_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Verify document belongs to this user
+    doc = db.query(Document).filter(
+        Document.id      == document_id,
+        Document.user_id == current_user.id
+    ).first()
+
+    if not doc:
+        raise HTTPException(404, "Document not found.")
+
+    # Deactivate all others
+    all_docs = db.query(Document).filter(
+        Document.user_id == current_user.id
+    ).all()
+    for d in all_docs:
+        d.is_active = (d.id == document_id)
+    db.commit()
+
+    # Return this document's conversation history
+    record = db.query(Conversation).filter(
+        Conversation.user_id     == current_user.id,
+        Conversation.document_id == document_id
+    ).first()
+
+    messages = []
+    if record:
+        messages = json.loads(record.messages)
+
+    return {
+        "messages": messages,
+        "document": {
+            "id":          doc.id,
+            "filename":    doc.filename,
+            "uploaded_at": doc.uploaded_at.isoformat(),
+            "file_size":   doc.file_size
+        }
+    }
+
+
+# ── Health ─────────────────────────────────────────────────
+@app.get("/health")
+def health():
+    return {"status": "ok"}
