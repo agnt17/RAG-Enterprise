@@ -154,7 +154,7 @@ export default function App() {
   const [messages, setMessages] = useState([])
   const [question, setQuestion] = useState("")
   const [uploading, setUploading] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState(null)
+  const [uploadedFile, setUploadedFile] = useState(null)  // Now: {filename, id, uploaded_at, file_size} or null
   const [loading, setLoading] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)   // ← user dropdown toggle
 
@@ -193,6 +193,7 @@ export default function App() {
       })
       .then(res => {
         const savedMessages = res.data.messages
+        const savedDocument = res.data.document
 
         // Only restore if there are previous messages
         if (savedMessages && savedMessages.length > 0) {
@@ -206,10 +207,16 @@ export default function App() {
             time: ""  // we don't store time in DB, so leave blank
           }))
           setMessages(restored)
+        }
 
-          // Restore the uploaded filename from localStorage
-          const savedFile = localStorage.getItem("uploadedFile")
-          if (savedFile) setUploadedFile(savedFile)
+        // Restore the uploaded file metadata from the response
+        if (savedDocument) {
+          setUploadedFile({
+            filename: savedDocument.filename,
+            id: savedDocument.id,
+            uploaded_at: savedDocument.uploaded_at,
+            file_size: savedDocument.file_size
+          })
         }
       })
       .catch(() => {
@@ -248,7 +255,6 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem("token")
-    localStorage.removeItem("uploadedFile")
     setToken(null)
     setUser(null)
     setMessages([])
@@ -267,15 +273,23 @@ export default function App() {
     const form = new FormData()
     form.append("file", file)
     try {
-      await axios.post(`${API}/upload`, form)
-      setUploadedFile(file.name)
-      localStorage.setItem("uploadedFile", file.name)
+      const res = await axios.post(`${API}/upload`, form)
+      const filename = res.data.filename
+      const documentId = res.data.document_id
+      // Store file metadata locally for immediate display
+      const now = new Date().toISOString()
+      setUploadedFile({
+        filename: filename,
+        id: documentId,
+        uploaded_at: now,
+        file_size: file.size.toString()
+      })
       setMessages([{
         role: "system",
-        text: `"${file.name}" has been indexed. You can now ask questions about it.`,
+        text: `"${filename}" has been indexed. You can now ask questions about it.`,
         time: getTime()
       }])
-      toast.success("Document indexed successfully!")  // ← replaces nothing, adds success
+      toast.success("Document indexed successfully!")
     } catch (err) {
       const status = err.response?.status
       const detail = err.response?.data?.detail
@@ -415,6 +429,24 @@ export default function App() {
           </div>
         </div>
 
+        {/* ── Current Document Display (when logged back in with history) ── */}
+        {uploadedFile && messages.length > 0 && (
+          <div className={`px-5 py-3.5 border rounded-xl ${t.card} transition-colors duration-200`}>
+            <p className={`text-xs font-semibold ${t.subtext} tracking-wider uppercase mb-2`}>Active Document</p>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <CheckIcon />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-emerald-600 truncate">{uploadedFile.filename}</p>
+                <p className={`text-xs ${t.subtext} mt-0.5`}>
+                  {uploadedFile.file_size ? `${(uploadedFile.file_size / 1024).toFixed(1)} KB` : "Indexed"}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Upload Zone — completely unchanged ── */}
         <div
           onClick={() => !uploading && fileRef.current.click()}
@@ -449,7 +481,7 @@ export default function App() {
               </>
             ) : uploadedFile ? (
               <>
-                <p className="text-sm font-medium text-emerald-600 truncate">{uploadedFile}</p>
+                <p className="text-sm font-medium text-emerald-600 truncate">{uploadedFile.filename}</p>
                 <p className="text-xs text-emerald-500 mt-0.5">Successfully indexed · Click to replace</p>
               </>
             ) : (

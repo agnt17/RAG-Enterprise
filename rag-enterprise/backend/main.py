@@ -151,7 +151,6 @@ async def upload_pdf(
         "filename":    file.filename,
         "document_id": doc_id
     }
-
 # ── Query ──────────────────────────────────────────────────
 @app.post("/query")
 @limiter.limit("20/day")
