@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, User, Document, Conversation
@@ -13,13 +14,19 @@ from slowapi.errors import RateLimitExceeded
 import os, uuid, json
 from datetime import datetime
 
-# ── App setup — only ONE instance ─────────────────────────
+# ── App setup ──────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address)
 app     = FastAPI()
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 create_tables()
+
+# ── Serve uploaded files for preview ──────────────────────
+# Creates a /files/filename.pdf public URL for each upload
+# Users can preview their PDFs directly in the browser
+os.makedirs("uploads", exist_ok=True)
+app.mount("/files", StaticFiles(directory="uploads"), name="files")
 
 app.add_middleware(
     CORSMiddleware,
@@ -115,13 +122,15 @@ async def upload_pdf(
 
     # Generate unique document ID — used as both DB primary key and Pinecone namespace
     doc_id    = str(uuid.uuid4())
-    file_path = f"uploads/{doc_id}_{file.filename}"
+
+    # Store with doc_id prefix so filenames don't collide between users
+    stored_filename = f"{doc_id}_{file.filename}"
+    file_path       = f"uploads/{stored_filename}"
     os.makedirs("uploads", exist_ok=True)
     with open(file_path, "wb") as buffer:
         buffer.write(contents)
 
     # Deactivate all previous documents for this user
-    # Old conversations are PRESERVED — just no longer active
     all_docs = db.query(Document).filter(
         Document.user_id == current_user.id
     ).all()
@@ -131,13 +140,13 @@ async def upload_pdf(
 
     # Create new document record
     doc = Document(
-        id          = doc_id,
-        user_id     = current_user.id,
-        filename    = file.filename,
-        file_path   = file_path,
-        file_size   = str(len(contents)),
-        chunk_count = 0,
-        is_active   = True
+        id             = doc_id,
+        user_id        = current_user.id,
+        filename       = file.filename,          # original name for display
+        file_path      = stored_filename,        # stored name (with doc_id prefix)
+        file_size      = str(len(contents)),
+        chunk_count    = 0,
+        is_active      = True
     )
     db.add(doc)
     db.commit()
@@ -149,8 +158,10 @@ async def upload_pdf(
     return {
         "message":     result,
         "filename":    file.filename,
-        "document_id": doc_id
+        "document_id": doc_id,
+        "file_path":   stored_filename
     }
+
 # ── Query ──────────────────────────────────────────────────
 @app.post("/query")
 @limiter.limit("20/day")
@@ -160,7 +171,6 @@ async def query(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Find the active document for this user
     active_doc = db.query(Document).filter(
         Document.user_id   == current_user.id,
         Document.is_active == True
@@ -189,7 +199,6 @@ async def get_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Get the currently active document
     active_doc = db.query(Document).filter(
         Document.user_id   == current_user.id,
         Document.is_active == True
@@ -198,7 +207,6 @@ async def get_history(
     if not active_doc:
         return {"messages": [], "document": None}
 
-    # Get this document's specific conversation
     record = db.query(Conversation).filter(
         Conversation.user_id     == current_user.id,
         Conversation.document_id == active_doc.id
@@ -213,6 +221,7 @@ async def get_history(
         "document": {
             "id":          active_doc.id,
             "filename":    active_doc.filename,
+            "file_path":   active_doc.file_path,
             "uploaded_at": active_doc.uploaded_at.isoformat(),
             "file_size":   active_doc.file_size
         }
@@ -233,6 +242,7 @@ async def get_documents(
             {
                 "id":          d.id,
                 "filename":    d.filename,
+                "file_path":   d.file_path,
                 "uploaded_at": d.uploaded_at.isoformat(),
                 "file_size":   d.file_size,
                 "is_active":   d.is_active
@@ -248,7 +258,6 @@ async def activate_document(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Verify document belongs to this user
     doc = db.query(Document).filter(
         Document.id      == document_id,
         Document.user_id == current_user.id
@@ -257,7 +266,6 @@ async def activate_document(
     if not doc:
         raise HTTPException(404, "Document not found.")
 
-    # Deactivate all, activate only the selected one
     all_docs = db.query(Document).filter(
         Document.user_id == current_user.id
     ).all()
@@ -265,7 +273,6 @@ async def activate_document(
         d.is_active = (d.id == document_id)
     db.commit()
 
-    # Return this document's conversation history
     record = db.query(Conversation).filter(
         Conversation.user_id     == current_user.id,
         Conversation.document_id == document_id
@@ -280,6 +287,7 @@ async def activate_document(
         "document": {
             "id":          doc.id,
             "filename":    doc.filename,
+            "file_path":   doc.file_path,
             "uploaded_at": doc.uploaded_at.isoformat(),
             "file_size":   doc.file_size
         }
@@ -292,7 +300,6 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Verify document belongs to this user
     doc = db.query(Document).filter(
         Document.id      == document_id,
         Document.user_id == current_user.id
@@ -301,7 +308,8 @@ async def delete_document(
     if not doc:
         raise HTTPException(404, "Document not found.")
 
-    was_active = doc.is_active
+    was_active  = doc.is_active
+    stored_name = doc.file_path
 
     # Delete Pinecone vectors for this document
     try:
@@ -310,7 +318,15 @@ async def delete_document(
     except Exception:
         pass
 
-    # Delete conversation for this document
+    # Delete file from disk
+    try:
+        disk_path = f"uploads/{stored_name}"
+        if os.path.exists(disk_path):
+            os.remove(disk_path)
+    except Exception:
+        pass
+
+    # Delete conversation
     db.query(Conversation).filter(
         Conversation.document_id == document_id
     ).delete()
@@ -319,7 +335,7 @@ async def delete_document(
     db.delete(doc)
     db.commit()
 
-    # If deleted doc was active, activate the most recent remaining one
+    # If deleted doc was active, activate most recent remaining one
     if was_active:
         latest = db.query(Document).filter(
             Document.user_id == current_user.id
@@ -328,7 +344,25 @@ async def delete_document(
             latest.is_active = True
             db.commit()
 
-    return {"message": f"'{doc.filename}' deleted successfully."}
+            # Return new active doc's history
+            record = db.query(Conversation).filter(
+                Conversation.user_id     == current_user.id,
+                Conversation.document_id == latest.id
+            ).first()
+            messages = json.loads(record.messages) if record else []
+            return {
+                "message": f"'{doc.filename}' deleted.",
+                "new_active": {
+                    "id":          latest.id,
+                    "filename":    latest.filename,
+                    "file_path":   latest.file_path,
+                    "uploaded_at": latest.uploaded_at.isoformat(),
+                    "file_size":   latest.file_size
+                },
+                "messages": messages
+            }
+
+    return {"message": f"'{doc.filename}' deleted.", "new_active": None, "messages": []}
 
 # ── Health ─────────────────────────────────────────────────
 @app.get("/health")
