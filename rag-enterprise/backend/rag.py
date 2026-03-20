@@ -34,27 +34,24 @@ class PostgresChatMessageHistory(BaseChatMessageHistory):
     - .clear()             — to wipe history (not used yet but required)
     """
 
-    def __init__(self, db: Session, user_id: str):
-        from database import Conversation
-        self.db      = db
-        self.user_id = user_id
-        self.Conversation = Conversation
+    def __init__(self, db: Session, user_id: str, document_id: str):
+    from database import Conversation
+    self.db          = db
+    self.user_id     = user_id
+    self.document_id = document_id
 
-        # Load or create the conversation row for this user
-        # Each user has ONE conversation row that grows over time
-        self.record = db.query(Conversation).filter(
-            Conversation.user_id == user_id
-        ).first()
+    self.record = db.query(Conversation).filter(
+        Conversation.user_id     == user_id,
+        Conversation.document_id == document_id
+    ).first()
 
-        if not self.record:
-            # First time this user is querying — create a fresh row
-            self.record = Conversation(
-                id       = str(uuid.uuid4()),
-                user_id  = user_id,
-                messages = "[]"  # empty JSON array
-            )
-            db.add(self.record)
-            db.commit()
+    if not self.record:
+        self.record = Conversation(
+            id          = str(uuid.uuid4()),
+            user_id     = user_id,
+            document_id = document_id,
+            messages    = "[]"
+        )
 
     @property
     def messages(self) -> list[BaseMessage]:
@@ -101,7 +98,7 @@ class PostgresChatMessageHistory(BaseChatMessageHistory):
         
 
 
-def get_rag_chain(namespace: str, db: Session):
+def def get_rag_chain(namespace: str, db: Session, user_id: str, document_id: str):
     """
     Builds and returns the full RAG chain for a specific user.
     
@@ -139,7 +136,11 @@ def get_rag_chain(namespace: str, db: Session):
     # This function is called by RunnableWithMessageHistory
     # on every invocation to get the history for this user
     def get_history(session_id: str) -> PostgresChatMessageHistory:
-        return PostgresChatMessageHistory(db=db, user_id=session_id)
+        return PostgresChatMessageHistory(
+            db          = db,
+            user_id     = user_id,
+            document_id = document_id
+        )
 
     return RunnableWithMessageHistory(
         chain,
