@@ -73,6 +73,7 @@ export default function AuthPage({ onLogin }) {
               onSuccess={handleGoogle}
               onError={() => setError("Google sign-in failed")}
               useOneTap={false}
+              flow="implicit"
               theme="filled_black"
               shape="pill"
               text={mode === "login" ? "signin_with" : "signup_with"}
