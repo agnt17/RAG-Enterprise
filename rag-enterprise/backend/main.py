@@ -179,19 +179,21 @@ async def query(
     if not active_doc:
         raise HTTPException(400, "No document uploaded. Please upload a PDF first.")
 
-    from rag import get_rag_chain
-    chain = get_rag_chain(
+    # Import the new function — not get_rag_chain anymore
+    from rag import query_with_sources
+
+    result = query_with_sources(
+        question    = req.question,
         namespace   = active_doc.id,
         db          = db,
         user_id     = current_user.id,
         document_id = active_doc.id
     )
 
-    response = chain.invoke(
-        {"question": req.question},
-        config={"configurable": {"session_id": active_doc.id}}
-    )
-    return {"answer": response}
+    return {
+        "answer":  result["answer"],
+        "sources": result["sources"]   # ← new field
+    }
 
 # ── History ────────────────────────────────────────────────
 @app.get("/history")

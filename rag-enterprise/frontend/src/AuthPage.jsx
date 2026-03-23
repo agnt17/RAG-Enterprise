@@ -2,7 +2,11 @@ import { useState } from "react"
 import { GoogleLogin } from "@react-oauth/google"
 import axios from "axios"
 
-const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+const API = (
+  import.meta.env.PROD
+    ? import.meta.env.VITE_API_URL
+    : (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000")
+)?.replace(/\/$/, "")
 
 export default function AuthPage({ onLogin }) {
   const [mode, setMode] = useState("login")   // "login" or "register"
@@ -15,6 +19,11 @@ export default function AuthPage({ onLogin }) {
   const submit = async () => {
     setLoading(true)
     setError("")
+    if (!API) {
+      setError("API URL is not configured. Set VITE_API_URL in the frontend environment.")
+      setLoading(false)
+      return
+    }
     try {
       const endpoint = mode === "login" ? "/login" : "/register"
       const payload  = mode === "login"
@@ -31,6 +40,11 @@ export default function AuthPage({ onLogin }) {
   const handleGoogle = async (credentialResponse) => {
     setLoading(true)
     setError("")
+    if (!API) {
+      setError("API URL is not configured. Set VITE_API_URL in the frontend environment.")
+      setLoading(false)
+      return
+    }
     try {
       // Send Google's ID token to our backend for verification
       const res = await axios.post(`${API}/auth/google`, {
