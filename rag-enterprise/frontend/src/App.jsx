@@ -242,7 +242,7 @@ export default function App() {
   const [appLoading, setAppLoading]     = useState(true)
   const [documents, setDocuments]       = useState([])
   const [switching, setSwitching]       = useState(false)
-  const [sidebarOpen, setSidebarOpen]   = useState(true)
+  const [sidebarOpen, setSidebarOpen]   = useState(() => window.innerWidth >= 1024)
   const [openMenuId, setOpenMenuId]     = useState(null)
 
   const [token, setToken] = useState(localStorage.getItem("token"))
@@ -253,6 +253,15 @@ export default function App() {
 
   const resolvedTheme = themeMode === "system" ? (systemIsDark ? "dark" : "light") : themeMode
   const t = themes[resolvedTheme]
+
+  // Keep sidebar closed on small screens
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)")
+    const sync = () => setSidebarOpen(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    return () => mq.removeEventListener("change", sync)
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -454,11 +463,19 @@ export default function App() {
   return (
     <div className={`h-screen flex overflow-hidden ${t.page} transition-colors duration-200`}>
 
-      {/* ══════════════════════════════════════
-          SIDEBAR
-      ══════════════════════════════════════ */}
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          aria-label="Close sidebar"
+        />
+      )}
+
       <aside className={`
-        ${sidebarOpen ? "w-64" : "w-0"}
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        ${sidebarOpen ? "w-72" : "w-0 lg:w-72"}
+        fixed lg:static z-40 h-full
         flex-shrink-0 flex flex-col border-r overflow-hidden
         transition-all duration-300 ease-in-out
         ${t.sidebar}
@@ -613,7 +630,7 @@ export default function App() {
             </div>
             <button onClick={handleLogout} title="Sign out"
               className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0
-                opacity-0 group-hover:opacity-100 transition-all
+                transition-all
                 ${resolvedTheme === "dark" ? "hover:bg-red-900/30 text-red-400" : "hover:bg-red-50 text-red-500"}`}>
               <IconLogOut />
             </button>
