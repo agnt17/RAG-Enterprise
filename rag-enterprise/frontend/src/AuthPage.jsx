@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { GoogleLogin } from "@react-oauth/google"
 import axios from "axios"
 
@@ -100,51 +100,55 @@ export default function AuthPage({ onLogin }) {
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
-          {/* Name field — only on register */}
-          {mode === "register" && (
+          {/* Traditional Auth Form */}
+          <form onSubmit={(e) => { e.preventDefault(); submit() }} className="flex flex-col gap-4">
+            {/* Name field — only on register */}
+            {mode === "register" && (
+              <input
+                name="name"
+                placeholder="Full name"
+                value={form.name}
+                onChange={handle}
+                className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-blue-500/50 transition-all"
+              />
+            )}
+
             <input
-              name="name"
-              placeholder="Full name"
-              value={form.name}
+              name="email"
+              type="email"
+              placeholder="Email address"
+              value={form.email}
               onChange={handle}
+              required
               className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-blue-500/50 transition-all"
             />
-          )}
 
-          <input
-            name="email"
-            type="email"
-            placeholder="Email address"
-            value={form.email}
-            onChange={handle}
-            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-blue-500/50 transition-all"
-          />
+            <input
+              name="password"
+              type="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={handle}
+              required
+              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-blue-500/50 transition-all"
+            />
 
-          <input
-            name="password"
-            type="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={handle}
-            onKeyDown={e => e.key === "Enter" && submit()}
-            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-blue-500/50 transition-all"
-          />
+            {/* Error message */}
+            {error && (
+              <p className="text-xs text-red-400 font-mono bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
 
-          {/* Error message */}
-          {error && (
-            <p className="text-xs text-red-400 font-mono bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
-
-          {/* Submit button */}
-          <button
-            onClick={submit}
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-400 text-gray-950 font-bold text-sm transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
-          </button>
+            {/* Submit button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-400 text-gray-950 font-bold text-sm transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
+            </button>
+          </form>
 
           {/* Toggle mode */}
           <p className="text-center text-xs text-gray-500">

@@ -8,17 +8,40 @@ from google.auth.transport import requests as google_requests
 from sqlalchemy.orm import Session
 from database import get_db, User
 import os, uuid
+import re
 
 # ── PASSWORD HASHING ───────────────────────────────────────
-# bcrypt = slow hashing algorithm specifically designed for passwords
-# "slow" is good — it stops brute force attacks
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Argon2 is a modern password hashing algorithm.
+# Keep bcrypt as fallback so existing hashes remain valid.
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
+
+def validate_password_strength(password: str) -> None:
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long."
+        )
+    if not re.search(r"[A-Za-z]", password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must include at least one letter."
+        )
+    if not re.search(r"\d", password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must include at least one number."
+        )
+    if not re.search(r"[^A-Za-z0-9]", password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must include at least one special character."
+        )
 
 # ── JWT TOKENS ─────────────────────────────────────────────
 # JWT = three base64 parts separated by dots

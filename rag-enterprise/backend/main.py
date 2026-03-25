@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, User, Document, Conversation
 from auth import (hash_password, verify_password, create_token,
+                  validate_password_strength,
                   get_current_user, verify_google_token,
                   get_or_create_google_user)
 from ingest import ingest_pdf
@@ -58,8 +59,31 @@ class QueryRequest(BaseModel):
 # ── Auth Endpoints ─────────────────────────────────────────
 @app.post("/register")
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == req.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    validate_password_strength(req.password)
+
+    existing_user = db.query(User).filter(User.email == req.email).first()
+    if existing_user:
+        # Modern account-linking flow: if user first signed up with Google,
+        # allow them to set a password for traditional login.
+        if existing_user.hashed_password:
+            raise HTTPException(status_code=400, detail="Email already registered")
+
+        existing_user.hashed_password = hash_password(req.password)
+        if req.name:
+            existing_user.name = req.name
+        existing_user.last_login = datetime.utcnow()
+        db.commit()
+        db.refresh(existing_user)
+        token = create_token(existing_user.id, existing_user.email)
+        return {
+            "token": token,
+            "user": {
+                "email": existing_user.email,
+                "name": existing_user.name,
+                "picture": existing_user.picture
+            }
+        }
+
     user = User(
         id              = str(uuid.uuid4()),
         email           = req.email,
