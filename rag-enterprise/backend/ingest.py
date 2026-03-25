@@ -57,3 +57,10 @@ def ingest_pdf(file_path: str, namespace: str = "default"):
     # most expensive step, it makes 1 API call per batch of chunks. 
     # This is where the magic happens. For every chunk in your list, it calls the HuggingFace model to convert the text into a vector (384 numbers), then uploads that vector + the original text + the metadata to Pinecone. This is a batch operation — it does all chunks in one go. After this line, Pinecone has your entire document stored as searchable vectors.
     return f"Ingested {len(chunks)} chunks successfully"
+
+
+def delete_namespace(namespace: str) -> bool:
+    pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+    index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
+    index.delete(delete_all=True, namespace=namespace)
+    return True

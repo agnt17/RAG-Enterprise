@@ -1,19 +1,23 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, User, Document, Conversation
 from auth import (hash_password, verify_password, create_token,
                   validate_password_strength,
                   get_current_user, verify_google_token,
-                  get_or_create_google_user)
+                  get_or_create_google_user, normalize_email,
+                  generate_otp_code, generate_magic_token,
+                  hash_verification_value, JWT_SECRET)
 from ingest import ingest_pdf
+from email_service import send_verification_email
 from slowapi import Limiter, _rate_limit_exceeded_handler
+from sqlalchemy import and_
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import os, uuid, json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ── App setup ──────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address)
@@ -22,6 +26,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 create_tables()
+
+if JWT_SECRET == "change-this-in-production":
+    raise RuntimeError("JWT_SECRET is using the default insecure value. Set a secure secret.")
+
+VERIFICATION_EXPIRY_MINUTES = int(os.getenv("EMAIL_VERIFICATION_EXPIRY_MINUTES", "15"))
+VERIFICATION_MAX_ATTEMPTS = int(os.getenv("EMAIL_VERIFICATION_MAX_ATTEMPTS", "5"))
+VERIFICATION_RESEND_COOLDOWN_SECONDS = int(os.getenv("EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS", "60"))
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
 
 # ── Serve uploaded files for preview ──────────────────────
 # Creates a /files/filename.pdf public URL for each upload
@@ -42,69 +54,276 @@ app.add_middleware(
 
 # ── Request Models ─────────────────────────────────────────
 class RegisterRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
-    name: str
+    name: str | None = None
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 class GoogleAuthRequest(BaseModel):
     token: str
 
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    otp: str | None = None
+    token: str | None = None
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
 class QueryRequest(BaseModel):
     question: str
 
+
+class AdminCleanupRequest(BaseModel):
+    mode: str = "all-users"  # "all-users" or "email-contains"
+    email_filter: str | None = None
+    delete_upload_files: bool = True
+    skip_pinecone: bool = False
+    confirm: bool = False  # Must be True to execute (vs. dry-run)
+
+
+def _build_magic_link(email: str, magic_token: str) -> str:
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    return f"{frontend_url}/?verify_token={magic_token}&email={email}"
+
+
+def _issue_verification_challenge(user: User, db: Session) -> tuple[str, datetime]:
+    otp_code = generate_otp_code()
+    magic_token = generate_magic_token()
+    expires_at = datetime.utcnow() + timedelta(minutes=VERIFICATION_EXPIRY_MINUTES)
+
+    user.email_verification_code_hash = hash_verification_value(otp_code)
+    user.email_verification_token_hash = hash_verification_value(magic_token)
+    user.email_verification_expires_at = expires_at
+    user.email_verification_attempts = 0
+    user.email_verification_sent_at = datetime.utcnow()
+    db.commit()
+
+    magic_link = _build_magic_link(user.email, magic_token)
+    send_verification_email(user.email, user.name, otp_code, magic_link, VERIFICATION_EXPIRY_MINUTES)
+    return user.email, expires_at
+
+
+def _verification_pending_payload(email: str, expires_at: datetime) -> dict:
+    return {
+        "needs_verification": True,
+        "email": email,
+        "expires_at": expires_at.isoformat(),
+        "resend_after_seconds": VERIFICATION_RESEND_COOLDOWN_SECONDS,
+        "message": "Verification required. Check your inbox for OTP or magic link."
+    }
+
+
+def _verify_admin_token(request: Request) -> None:
+    if not ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="Admin access not configured")
+    auth_header = request.headers.get("X-Admin-Secret", "")
+    if not auth_header or auth_header != ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid or missing admin token")
+
+
+def _list_cleanup_targets(db: Session, mode: str, email_filter: str | None) -> tuple[list[User], list[Document], list[Conversation]]:
+    user_query = db.query(User)
+    filters = []
+
+    if mode == "all-users":
+        users = user_query.all()
+    elif mode == "email-contains" and email_filter:
+        users = user_query.filter(User.email.ilike(f"%{email_filter}%")).all()
+    else:
+        users = []
+
+    user_ids = [u.id for u in users]
+    docs = db.query(Document).filter(Document.user_id.in_(user_ids)).all() if user_ids else []
+    convs = db.query(Conversation).filter(Conversation.user_id.in_(user_ids)).all() if user_ids else []
+
+    return users, docs, convs
+
+
+def _execute_cleanup(db: Session, users: list[User], docs: list[Document], convs: list[Conversation],
+                     delete_files: bool, skip_pinecone: bool) -> dict:
+    from ingest import delete_namespace
+    import os
+
+    # Delete Pinecone namespaces first
+    deleted_namespaces = 0
+    failed_namespaces = 0
+    if not skip_pinecone:
+        for doc in docs:
+            try:
+                delete_namespace(doc.id)
+                deleted_namespaces += 1
+            except Exception:
+                failed_namespaces += 1
+
+    # Delete local files
+    deleted_files = 0
+    if delete_files:
+        for doc in docs:
+            if doc.file_path:
+                try:
+                    file_path = os.path.join("uploads", doc.file_path)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        deleted_files += 1
+                except Exception:
+                    pass
+
+    # Delete DB rows in safe order
+    user_ids = [u.id for u in users]
+    deleted_convs = db.query(Conversation).filter(Conversation.user_id.in_(user_ids)).delete(synchronize_session=False) if user_ids else 0
+    deleted_docs = db.query(Document).filter(Document.user_id.in_(user_ids)).delete(synchronize_session=False) if user_ids else 0
+    deleted_users = db.query(User).filter(User.id.in_(user_ids)).delete(synchronize_session=False) if user_ids else 0
+    db.commit()
+
+    return {
+        "deleted_users": deleted_users,
+        "deleted_documents": deleted_docs,
+        "deleted_conversations": deleted_convs,
+        "deleted_files": deleted_files,
+        "deleted_pinecone_namespaces": deleted_namespaces,
+        "pinecone_failures": failed_namespaces,
+    }
+
+
 # ── Auth Endpoints ─────────────────────────────────────────
 @app.post("/register")
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
     validate_password_strength(req.password)
 
-    existing_user = db.query(User).filter(User.email == req.email).first()
+    existing_user = db.query(User).filter(User.email == email).first()
     if existing_user:
-        # Modern account-linking flow: if user first signed up with Google,
-        # allow them to set a password for traditional login.
-        if existing_user.hashed_password:
+        if existing_user.email_verified:
             raise HTTPException(status_code=400, detail="Email already registered")
 
         existing_user.hashed_password = hash_password(req.password)
         if req.name:
             existing_user.name = req.name
-        existing_user.last_login = datetime.utcnow()
-        db.commit()
-        db.refresh(existing_user)
-        token = create_token(existing_user.id, existing_user.email)
-        return {
-            "token": token,
-            "user": {
-                "email": existing_user.email,
-                "name": existing_user.name,
-                "picture": existing_user.picture
-            }
-        }
+        try:
+            issued_email, expires_at = _issue_verification_challenge(existing_user, db)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return _verification_pending_payload(issued_email, expires_at)
 
     user = User(
         id              = str(uuid.uuid4()),
-        email           = req.email,
+        email           = email,
         name            = req.name,
         hashed_password = hash_password(req.password),
+        email_verified  = False,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    token = create_token(user.id, user.email)
-    return {"token": token, "user": {"email": user.email, "name": user.name, "picture": user.picture}}
+
+    try:
+        issued_email, expires_at = _issue_verification_challenge(user, db)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return _verification_pending_payload(issued_email, expires_at)
 
 @app.post("/login")
-def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == req.email).first()
+@limiter.limit("10/minute")
+def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
+    user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(req.password, user.hashed_password or ""):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "EMAIL_NOT_VERIFIED",
+                "message": "Email is not verified. Complete verification first.",
+                "email": user.email,
+            }
+        )
     user.last_login = datetime.utcnow()
     db.commit()
     token = create_token(user.id, user.email)
     return {"token": token, "user": {"email": user.email, "name": user.name, "picture": user.picture}}
+
+
+@app.post("/verify-email")
+@limiter.limit("10/15minute")
+def verify_email(request: Request, req: VerifyEmailRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
+    if not req.otp and not req.token:
+        raise HTTPException(status_code=400, detail="Provide either OTP or token.")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if user.email_verified:
+        raise HTTPException(status_code=400, detail="Email is already verified")
+
+    if not user.email_verification_expires_at or user.email_verification_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Verification has expired. Request a new code.")
+    if (user.email_verification_attempts or 0) >= VERIFICATION_MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Request a new verification email.")
+
+    valid = False
+    if req.otp and user.email_verification_code_hash:
+        valid = hash_verification_value(req.otp.strip()) == user.email_verification_code_hash
+    if req.token and user.email_verification_token_hash:
+        valid = hash_verification_value(req.token.strip()) == user.email_verification_token_hash
+
+    if not valid:
+        user.email_verification_attempts = (user.email_verification_attempts or 0) + 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="Invalid verification code or link")
+
+    user.email_verified = True
+    user.email_verification_code_hash = None
+    user.email_verification_token_hash = None
+    user.email_verification_expires_at = None
+    user.email_verification_attempts = 0
+    user.last_login = datetime.utcnow()
+    db.commit()
+    token = create_token(user.id, user.email)
+    return {
+        "token": token,
+        "user": {"email": user.email, "name": user.name, "picture": user.picture}
+    }
+
+
+@app.post("/resend-verification")
+@limiter.limit("3/15minute")
+def resend_verification(request: Request, req: ResendVerificationRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if user.email_verified:
+        raise HTTPException(status_code=400, detail="Email is already verified")
+
+    sent_at = user.email_verification_sent_at
+    if sent_at:
+        elapsed = (datetime.utcnow() - sent_at).total_seconds()
+        if elapsed < VERIFICATION_RESEND_COOLDOWN_SECONDS:
+            retry_after = int(VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed)
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "message": "Please wait before requesting another verification email.",
+                    "retry_after_seconds": retry_after,
+                }
+            )
+
+    try:
+        issued_email, expires_at = _issue_verification_challenge(user, db)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return _verification_pending_payload(issued_email, expires_at)
 
 @app.post("/auth/google")
 def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
@@ -121,6 +340,31 @@ def get_me(current_user: User = Depends(get_current_user)):
         "picture": current_user.picture,
         "plan":    current_user.plan
     }
+
+# ── Admin Endpoints ────────────────────────────────────────
+@app.post("/admin/cleanup-data")
+@limiter.limit("1/minute")
+def admin_cleanup_data(request: Request, req: AdminCleanupRequest, db: Session = Depends(get_db)):
+    _verify_admin_token(request)
+
+    users, docs, convs = _list_cleanup_targets(db, req.mode, req.email_filter)
+
+    result = {
+        "mode": "DRY-RUN" if not req.confirm else "APPLIED",
+        "preview": {
+            "users_found": len(users),
+            "documents_found": len(docs),
+            "conversations_found": len(convs),
+        }
+    }
+
+    if req.confirm:
+        cleanup_result = _execute_cleanup(db, users, docs, convs, req.delete_upload_files, req.skip_pinecone)
+        result["result"] = cleanup_result
+    else:
+        result["message"] = "This is a dry-run preview. Re-submit with confirm=true to execute."
+
+    return result
 
 # ── Upload ─────────────────────────────────────────────────
 @app.post("/upload")

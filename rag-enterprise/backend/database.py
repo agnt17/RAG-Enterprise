@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer
+from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -27,6 +27,12 @@ class User(Base):
     picture         = Column(String, nullable=True)
     plan            = Column(String, default="free")
     is_active       = Column(Boolean, default=True)
+    email_verified  = Column(Boolean, default=False)
+    email_verification_code_hash = Column(String, nullable=True)
+    email_verification_token_hash = Column(String, nullable=True)
+    email_verification_expires_at = Column(DateTime, nullable=True)
+    email_verification_attempts = Column(Integer, default=0)
+    email_verification_sent_at = Column(DateTime, nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow)
     last_login      = Column(DateTime, nullable=True)
 
@@ -59,8 +65,46 @@ class Conversation(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+def _ensure_user_columns():
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    migration_sql = {
+        "email_verified": "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE",
+        "email_verification_code_hash": "ALTER TABLE users ADD COLUMN email_verification_code_hash VARCHAR",
+        "email_verification_token_hash": "ALTER TABLE users ADD COLUMN email_verification_token_hash VARCHAR",
+        "email_verification_expires_at": "ALTER TABLE users ADD COLUMN email_verification_expires_at TIMESTAMP",
+        "email_verification_attempts": "ALTER TABLE users ADD COLUMN email_verification_attempts INTEGER DEFAULT 0",
+        "email_verification_sent_at": "ALTER TABLE users ADD COLUMN email_verification_sent_at TIMESTAMP",
+    }
+
+    with engine.begin() as connection:
+        for column_name, sql in migration_sql.items():
+            if column_name in existing_columns:
+                continue
+            connection.execute(text(sql))
+
+        # Backfill old users as verified to avoid locking out existing accounts.
+        connection.execute(
+            text(
+                """
+                UPDATE users
+                SET email_verified = TRUE
+                WHERE (email_verified IS NULL OR email_verified = FALSE)
+                  AND email_verification_code_hash IS NULL
+                  AND email_verification_token_hash IS NULL
+                  AND email_verification_sent_at IS NULL
+                  AND (hashed_password IS NOT NULL OR google_id IS NOT NULL)
+                """
+            )
+        )
+
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    _ensure_user_columns()
 
 def get_db():
     db = SessionLocal()
