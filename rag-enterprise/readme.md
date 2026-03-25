@@ -65,6 +65,17 @@ GROQ_API_KEY=your-groq-api-key
 PINECONE_API_KEY=your-pinecone-api-key
 PINECONE_INDEX_NAME=rag-enterprise
 COHERE_API_KEY=your-cohere-api-key
+JWT_SECRET=your-long-random-secret
+FRONTEND_URL=http://localhost:5173
+
+# Email verification delivery
+EMAIL_MODE=console
+EMAIL_FROM=no-reply@yourdomain.com
+# Required when EMAIL_MODE=smtp
+SMTP_HOST=smtp.yourprovider.com
+SMTP_PORT=587
+SMTP_USER=your-smtp-username
+SMTP_PASSWORD=your-smtp-password
 ```
 
 ### 3. Pinecone Index Setup
@@ -119,9 +130,54 @@ rag-enterprise/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `POST` | `/register` | Register account and send email verification |
+| `POST` | `/verify-email` | Verify with OTP or magic link token |
+| `POST` | `/resend-verification` | Resend verification email with cooldown |
+| `POST` | `/login` | Login verified users |
 | `POST` | `/upload` | Upload and index a PDF file |
 | `POST` | `/query` | Ask a question about the document |
+| `POST` | `/admin/cleanup-data` | **Admin only:** Cleanup users/documents/Pinecone (requires X-Admin-Secret header) |
 | `GET` | `/health` | Check server status |
+
+### Admin Cleanup Endpoint
+
+**POST** `/admin/cleanup-data` — Delete users, documents, conversations, and optionally Pinecone namespaces and local files.
+
+**Required header:** `X-Admin-Secret: <ADMIN_SECRET>`
+
+**Request body:**
+```json
+{
+  "mode": "all-users",
+  "email_filter": null,
+  "delete_upload_files": true,
+  "skip_pinecone": false,
+  "confirm": false
+}
+```
+
+**Fields:**
+- `mode`: `"all-users"` (delete all) or `"email-contains"` (filter by email substring)
+- `email_filter`: Used only when `mode="email-contains"`. Case-insensitive substring match.
+- `delete_upload_files`: If `true`, delete PDF files from `uploads/` for deleted documents
+- `skip_pinecone`: If `true`, skip Pinecone namespace deletion (only DB cleanup)
+- `confirm`: If `false`, returns dry-run preview only. If `true`, executes cleanup.
+
+**Example: Dry-run preview**
+```bash
+curl -X POST http://localhost:8000/admin/cleanup-data \
+  -H "X-Admin-Secret: dev-admin-secret-change-in-production" \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "all-users", "confirm": false}'
+```
+
+**Example: Execute cleanup for all users**
+```bash
+curl -X POST http://localhost:8000/admin/cleanup-data \
+  -H "X-Admin-Secret: dev-admin-secret-change-in-production" \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "all-users", "delete_upload_files": true, "confirm": true}'
+```
 
 ### Example Request
 
@@ -146,6 +202,14 @@ curl -X POST http://localhost:8000/query \
 | `PINECONE_API_KEY` | Vector database key | [pinecone.io](https://pinecone.io) |
 | `PINECONE_INDEX_NAME` | Name of your Pinecone index | Your Pinecone dashboard |
 | `COHERE_API_KEY` | Embeddings API key | [dashboard.cohere.com](https://dashboard.cohere.com) |
+| `JWT_SECRET` | Secret key used to sign login tokens | Generate securely (32+ random bytes) |
+| `FRONTEND_URL` | Frontend URL used in email magic links | Your deployed frontend URL |
+| `EMAIL_MODE` | `console` for dev or `smtp` for real email delivery | Set manually |
+| `EMAIL_FROM` | Sender email shown in verification emails | Your verified sender domain |
+| `SMTP_HOST` | SMTP server host | Your mail provider |
+| `SMTP_PORT` | SMTP server port | Usually 587 |
+| `SMTP_USER` | SMTP auth username | Your mail provider |
+| `SMTP_PASSWORD` | SMTP auth password | Your mail provider |
 
 ---
 
