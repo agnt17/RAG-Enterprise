@@ -76,6 +76,13 @@ class ProfileUpdateRequest(BaseModel):
     current_password: Optional[str] = None
     new_password: Optional[str] = None
 
+class AdminCleanupRequest(BaseModel):
+    mode: str = "all"  # "all", "test", or specific filter
+    email_filter: Optional[str] = None
+    confirm: bool = False
+    delete_upload_files: bool = True
+    skip_pinecone: bool = False
+
 # ── Auth Endpoints ─────────────────────────────────────────
 @app.post("/register")
 @limiter.limit("5/minute")
@@ -331,6 +338,59 @@ async def update_profile_details(
         "message": "Profile updated successfully",
         "name": current_user.name
     }
+
+# ── Admin Helper Functions ─────────────────────────────────
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
+
+def _verify_admin_token(request: Request):
+    """Verify admin authorization header"""
+    auth_header = request.headers.get("Authorization", "")
+    if not ADMIN_SECRET or auth_header != f"Bearer {ADMIN_SECRET}":
+        raise HTTPException(403, "Admin access denied")
+
+def _list_cleanup_targets(db: Session, mode: str, email_filter: Optional[str]):
+    """List users, documents, and conversations matching cleanup criteria"""
+    query = db.query(User)
+    
+    if mode == "test":
+        query = query.filter(User.email.like("%test%"))
+    elif email_filter:
+        query = query.filter(User.email.like(f"%{email_filter}%"))
+    
+    users = query.all()
+    user_ids = [u.id for u in users]
+    
+    docs = db.query(Document).filter(Document.user_id.in_(user_ids)).all() if user_ids else []
+    convs = db.query(Conversation).filter(Conversation.user_id.in_(user_ids)).all() if user_ids else []
+    
+    return users, docs, convs
+
+def _execute_cleanup(db: Session, users: list, docs: list, convs: list, delete_files: bool, skip_pinecone: bool):
+    """Execute the actual cleanup"""
+    result = {"users_deleted": 0, "documents_deleted": 0, "conversations_deleted": 0}
+    
+    # Delete conversations
+    for conv in convs:
+        db.delete(conv)
+        result["conversations_deleted"] += 1
+    
+    # Delete documents (and optionally their files)
+    for doc in docs:
+        if delete_files:
+            try:
+                delete_document(doc.id, doc.user_id)
+            except Exception:
+                pass  # File may not exist
+        db.delete(doc)
+        result["documents_deleted"] += 1
+    
+    # Delete users
+    for user in users:
+        db.delete(user)
+        result["users_deleted"] += 1
+    
+    db.commit()
+    return result
 
 # ── Admin Endpoints ────────────────────────────────────────
 @app.post("/admin/cleanup-data")
