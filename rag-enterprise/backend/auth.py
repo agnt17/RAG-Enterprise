@@ -121,22 +121,30 @@ def verify_google_token(id_token_str: str) -> dict:
 
 # ── USER HELPERS ───────────────────────────────────────────
 def get_or_create_google_user(db: Session, google_info: dict) -> User:
+    from database import ProfileImageSource
+    
     # Check if user already exists
     email = normalize_email(google_info["email"])
     user = db.query(User).filter(User.email == email).first()
     if user:
-        user.email_verified = True
+        # Update Google picture if user doesn't have a custom uploaded one
+        if user.profile_image_source != ProfileImageSource.UPLOAD.value:
+            google_picture = google_info.get("picture")
+            if google_picture:
+                user.picture = google_picture
+                user.profile_image_source = ProfileImageSource.GOOGLE.value
         user.last_login = datetime.utcnow()
         db.commit()
         return user
     # Create new user from Google data
+    google_picture = google_info.get("picture")
     user = User(
-        id        = str(uuid.uuid4()),
-        email     = email,
-        name      = google_info.get("name"),
-        picture   = google_info.get("picture"),
-        google_id = google_info.get("sub"),
-        email_verified = True,
+        id                   = str(uuid.uuid4()),
+        email                = google_info["email"],
+        name                 = google_info.get("name"),
+        picture              = google_picture,
+        google_id            = google_info.get("sub"),
+        profile_image_source = ProfileImageSource.GOOGLE.value if google_picture else ProfileImageSource.INITIAL.value,
     )
     db.add(user)
     db.commit()
