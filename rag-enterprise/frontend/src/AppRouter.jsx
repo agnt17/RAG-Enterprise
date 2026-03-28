@@ -4,6 +4,8 @@ import App from "./App"
 import SettingsPage from "./SettingsPage"
 import HelpPage from "./HelpPage"
 import UpgradePlanPage from "./UpgradePlanPage"
+import NotFoundPage from "./NotFoundPage"
+import ServerErrorPage from "./ServerErrorPage"
 
 export default function AppRouter() {
   return (
@@ -13,7 +15,8 @@ export default function AppRouter() {
         <Route path="/settings" element={<SettingsPageWrapper />} />
         <Route path="/help" element={<HelpPageWrapper />} />
         <Route path="/upgrade" element={<UpgradePlanPageWrapper />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/error" element={<ServerErrorPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   )

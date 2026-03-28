@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import axios from "axios"
 import { toast } from "./Toast"
@@ -69,7 +69,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
 
   const [user, setUser] = useState(initialUser)
   const [formData, setFormData] = useState({
-    name: user?.name || "",
+    name: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: ""
@@ -77,12 +77,35 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [removingPhoto, setRemovingPhoto] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const isDark = theme === "dark"
   const currentPlan = planDetails[user?.plan] || planDetails.free
 
+  // Sync user prop to local state when it changes (e.g., after async fetch completes)
+  useEffect(() => {
+    if (initialUser) {
+      setUser(initialUser)
+      setFormData(prev => ({ ...prev, name: initialUser.name || "" }))
+    }
+  }, [initialUser])
+
+  // Warn user about unsaved changes before leaving
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = "You have unsaved changes. Are you sure you want to leave?"
+        return e.returnValue
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [hasUnsavedChanges])
+
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
+    setHasUnsavedChanges(true)
   }
 
   const handlePhotoUpload = async (e) => {
@@ -175,6 +198,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
 
       toast.success("Profile updated successfully")
       setFormData({ ...formData, currentPassword: "", newPassword: "", confirmPassword: "" })
+      setHasUnsavedChanges(false)
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to update profile")
     } finally {
@@ -202,6 +226,15 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
   }
 
   const canRemovePhoto = user?.picture && user?.profile_image_source === "upload"
+
+  // Show loading spinner while user data is being fetched
+  if (!user) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+        <Spinner />
+      </div>
+    )
+  }
 
   return (
     <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
