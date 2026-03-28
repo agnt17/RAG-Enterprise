@@ -9,6 +9,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
+from datetime import datetime
 import os, json, uuid
 
 load_dotenv()
@@ -55,10 +56,11 @@ class PostgresChatMessageHistory(BaseChatMessageHistory):
 
     def add_message(self, message: BaseMessage) -> None:
         raw = json.loads(self.record.messages)
+        timestamp = datetime.utcnow().isoformat() + "Z"
         if isinstance(message, HumanMessage):
-            raw.append({"type": "human", "content": message.content})
+            raw.append({"type": "human", "content": message.content, "timestamp": timestamp})
         elif isinstance(message, AIMessage):
-            raw.append({"type": "ai", "content": message.content})
+            raw.append({"type": "ai", "content": message.content, "timestamp": timestamp})
         self.record.messages = json.dumps(raw)
         self.db.commit()
 
