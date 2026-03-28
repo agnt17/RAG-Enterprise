@@ -7,7 +7,9 @@ from database import get_db, create_tables, ensure_user_columns, User, Document,
 from auth import (hash_password, verify_password, create_token,
                   validate_password_strength,
                   get_current_user, verify_google_token,
-                  get_or_create_google_user)
+                  get_or_create_google_user, normalize_email,
+                  generate_otp_code, generate_magic_token,
+                  hash_verification_value, JWT_SECRET)
 from ingest import ingest_pdf
 from supabase_storage import (
     is_supabase_configured, ensure_buckets_exist,
@@ -15,6 +17,7 @@ from supabase_storage import (
     upload_document, get_document_url, download_document, delete_document
 )
 from slowapi import Limiter, _rate_limit_exceeded_handler
+from sqlalchemy import and_
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import os, uuid, json, tempfile
@@ -44,16 +47,26 @@ app.add_middleware(
 
 # ── Request Models ─────────────────────────────────────────
 class RegisterRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
-    name: str
+    name: str | None = None
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 class GoogleAuthRequest(BaseModel):
     token: str
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    otp: str | None = None
+    token: str | None = None
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 class QueryRequest(BaseModel):
     question: str
@@ -65,53 +78,137 @@ class ProfileUpdateRequest(BaseModel):
 
 # ── Auth Endpoints ─────────────────────────────────────────
 @app.post("/register")
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
     validate_password_strength(req.password)
 
-    existing_user = db.query(User).filter(User.email == req.email).first()
+    existing_user = db.query(User).filter(User.email == email).first()
     if existing_user:
-        # Modern account-linking flow: if user first signed up with Google,
-        # allow them to set a password for traditional login.
-        if existing_user.hashed_password:
+        if existing_user.email_verified:
             raise HTTPException(status_code=400, detail="Email already registered")
 
         existing_user.hashed_password = hash_password(req.password)
         if req.name:
             existing_user.name = req.name
-        existing_user.last_login = datetime.utcnow()
-        db.commit()
-        db.refresh(existing_user)
-        token = create_token(existing_user.id, existing_user.email)
-        return {
-            "token": token,
-            "user": {
-                "email": existing_user.email,
-                "name": existing_user.name,
-                "picture": existing_user.picture
-            }
-        }
+        try:
+            issued_email, expires_at = _issue_verification_challenge(existing_user, db)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return _verification_pending_payload(issued_email, expires_at)
 
     user = User(
         id              = str(uuid.uuid4()),
-        email           = req.email,
+        email           = email,
         name            = req.name,
         hashed_password = hash_password(req.password),
+        email_verified  = False,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    token = create_token(user.id, user.email)
-    return {"token": token, "user": {"email": user.email, "name": user.name, "picture": user.picture}}
+
+    try:
+        issued_email, expires_at = _issue_verification_challenge(user, db)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return _verification_pending_payload(issued_email, expires_at)
 
 @app.post("/login")
-def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == req.email).first()
+@limiter.limit("10/minute")
+def login(request: Request, req: LoginRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
+    user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(req.password, user.hashed_password or ""):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "EMAIL_NOT_VERIFIED",
+                "message": "Email is not verified. Complete verification first.",
+                "email": user.email,
+            }
+        )
     user.last_login = datetime.utcnow()
     db.commit()
     token = create_token(user.id, user.email)
     return {"token": token, "user": {"email": user.email, "name": user.name, "picture": user.picture}}
+
+
+@app.post("/verify-email")
+@limiter.limit("10/15minute")
+def verify_email(request: Request, req: VerifyEmailRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
+    if not req.otp and not req.token:
+        raise HTTPException(status_code=400, detail="Provide either OTP or token.")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if user.email_verified:
+        raise HTTPException(status_code=400, detail="Email is already verified")
+
+    if not user.email_verification_expires_at or user.email_verification_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Verification has expired. Request a new code.")
+    if (user.email_verification_attempts or 0) >= VERIFICATION_MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Request a new verification email.")
+
+    valid = False
+    if req.otp and user.email_verification_code_hash:
+        valid = hash_verification_value(req.otp.strip()) == user.email_verification_code_hash
+    if req.token and user.email_verification_token_hash:
+        valid = hash_verification_value(req.token.strip()) == user.email_verification_token_hash
+
+    if not valid:
+        user.email_verification_attempts = (user.email_verification_attempts or 0) + 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="Invalid verification code or link")
+
+    user.email_verified = True
+    user.email_verification_code_hash = None
+    user.email_verification_token_hash = None
+    user.email_verification_expires_at = None
+    user.email_verification_attempts = 0
+    user.last_login = datetime.utcnow()
+    db.commit()
+    token = create_token(user.id, user.email)
+    return {
+        "token": token,
+        "user": {"email": user.email, "name": user.name, "picture": user.picture}
+    }
+
+
+@app.post("/resend-verification")
+@limiter.limit("3/15minute")
+def resend_verification(request: Request, req: ResendVerificationRequest, db: Session = Depends(get_db)):
+    email = normalize_email(req.email)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if user.email_verified:
+        raise HTTPException(status_code=400, detail="Email is already verified")
+
+    sent_at = user.email_verification_sent_at
+    if sent_at:
+        elapsed = (datetime.utcnow() - sent_at).total_seconds()
+        if elapsed < VERIFICATION_RESEND_COOLDOWN_SECONDS:
+            retry_after = int(VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed)
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "message": "Please wait before requesting another verification email.",
+                    "retry_after_seconds": retry_after,
+                }
+            )
+
+    try:
+        issued_email, expires_at = _issue_verification_challenge(user, db)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return _verification_pending_payload(issued_email, expires_at)
 
 @app.post("/auth/google")
 def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
@@ -234,6 +331,31 @@ async def update_profile_details(
         "message": "Profile updated successfully",
         "name": current_user.name
     }
+
+# ── Admin Endpoints ────────────────────────────────────────
+@app.post("/admin/cleanup-data")
+@limiter.limit("1/minute")
+def admin_cleanup_data(request: Request, req: AdminCleanupRequest, db: Session = Depends(get_db)):
+    _verify_admin_token(request)
+
+    users, docs, convs = _list_cleanup_targets(db, req.mode, req.email_filter)
+
+    result = {
+        "mode": "DRY-RUN" if not req.confirm else "APPLIED",
+        "preview": {
+            "users_found": len(users),
+            "documents_found": len(docs),
+            "conversations_found": len(convs),
+        }
+    }
+
+    if req.confirm:
+        cleanup_result = _execute_cleanup(db, users, docs, convs, req.delete_upload_files, req.skip_pinecone)
+        result["result"] = cleanup_result
+    else:
+        result["message"] = "This is a dry-run preview. Re-submit with confirm=true to execute."
+
+    return result
 
 # ── Upload ─────────────────────────────────────────────────
 @app.post("/upload")

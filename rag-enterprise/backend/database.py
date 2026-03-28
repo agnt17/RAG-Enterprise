@@ -67,8 +67,46 @@ class Conversation(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+def _ensure_user_columns():
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    migration_sql = {
+        "email_verified": "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE",
+        "email_verification_code_hash": "ALTER TABLE users ADD COLUMN email_verification_code_hash VARCHAR",
+        "email_verification_token_hash": "ALTER TABLE users ADD COLUMN email_verification_token_hash VARCHAR",
+        "email_verification_expires_at": "ALTER TABLE users ADD COLUMN email_verification_expires_at TIMESTAMP",
+        "email_verification_attempts": "ALTER TABLE users ADD COLUMN email_verification_attempts INTEGER DEFAULT 0",
+        "email_verification_sent_at": "ALTER TABLE users ADD COLUMN email_verification_sent_at TIMESTAMP",
+    }
+
+    with engine.begin() as connection:
+        for column_name, sql in migration_sql.items():
+            if column_name in existing_columns:
+                continue
+            connection.execute(text(sql))
+
+        # Backfill old users as verified to avoid locking out existing accounts.
+        connection.execute(
+            text(
+                """
+                UPDATE users
+                SET email_verified = TRUE
+                WHERE (email_verified IS NULL OR email_verified = FALSE)
+                  AND email_verification_code_hash IS NULL
+                  AND email_verification_token_hash IS NULL
+                  AND email_verification_sent_at IS NULL
+                  AND (hashed_password IS NOT NULL OR google_id IS NOT NULL)
+                """
+            )
+        )
+
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    _ensure_user_columns()
 
 def ensure_user_columns():
     """Add new columns to existing users table if they don't exist"""
