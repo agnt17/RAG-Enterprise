@@ -19,20 +19,30 @@ Setup:
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from supabase import create_client, Client
 
 load_dotenv()
+
+# Try to import supabase, gracefully handle if not available
+try:
+    from supabase import create_client, Client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+    Client = None
 
 # Bucket names
 PROFILE_IMAGES_BUCKET = "profile-images"
 DOCUMENTS_BUCKET = "documents"
 
-_supabase_client: Optional[Client] = None
+_supabase_client = None
 
 
-def get_supabase_client() -> Optional[Client]:
+def get_supabase_client():
     """Get or create Supabase client singleton"""
     global _supabase_client
+    
+    if not SUPABASE_AVAILABLE:
+        return None
     
     if _supabase_client is not None:
         return _supabase_client
@@ -49,6 +59,8 @@ def get_supabase_client() -> Optional[Client]:
 
 def is_supabase_configured() -> bool:
     """Check if Supabase is properly configured"""
+    if not SUPABASE_AVAILABLE:
+        return False
     return all([
         os.getenv("SUPABASE_URL"),
         os.getenv("SUPABASE_SERVICE_KEY")
