@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, Enum, inspect
+from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, Enum, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -8,8 +8,12 @@ import enum
 
 load_dotenv()
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is required but not set")
+
 engine = create_engine(
-    os.getenv("DATABASE_URL"),
+    DATABASE_URL,
     pool_pre_ping=True
 )
 
@@ -110,7 +114,6 @@ def create_tables():
 
 def ensure_user_columns():
     """Add new columns to existing users table if they don't exist"""
-    from sqlalchemy import inspect, text
     inspector = inspect(engine)
     columns = [col["name"] for col in inspector.get_columns("users")]
     

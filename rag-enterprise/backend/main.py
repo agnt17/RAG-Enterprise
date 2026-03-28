@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, ensure_user_columns, User, Document, Conversation, ProfileImageSource
 from auth import (hash_password, verify_password, create_token,
