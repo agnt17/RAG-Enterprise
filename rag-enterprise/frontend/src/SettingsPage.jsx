@@ -63,10 +63,11 @@ const planDetails = {
   }
 }
 
-export default function SettingsPage({ user, theme, token }) {
+export default function SettingsPage({ user: initialUser, theme, token }) {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
 
+  const [user, setUser] = useState(initialUser)
   const [formData, setFormData] = useState({
     name: user?.name || "",
     currentPassword: "",
@@ -104,14 +105,19 @@ export default function SettingsPage({ user, theme, token }) {
     uploadFormData.append("file", file)
 
     try {
-      await axios.post(`${API}/profile/photo`, uploadFormData, {
+      const response = await axios.post(`${API}/profile/photo`, uploadFormData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data"
         }
       })
       toast.success("Profile photo updated successfully")
-      window.location.reload()
+      
+      // Refetch user data instead of full page reload
+      const userRes = await axios.get(`${API}/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setUser(userRes.data)
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to upload photo")
     } finally {
@@ -126,7 +132,12 @@ export default function SettingsPage({ user, theme, token }) {
         headers: { Authorization: `Bearer ${token}` }
       })
       toast.success("Profile photo removed")
-      window.location.reload()
+      
+      // Refetch user data instead of full page reload
+      const userRes = await axios.get(`${API}/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setUser(userRes.data)
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to remove photo")
     } finally {
