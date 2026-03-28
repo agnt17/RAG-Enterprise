@@ -9,11 +9,6 @@ from auth import (hash_password, verify_password, create_token,
                   get_current_user, verify_google_token,
                   get_or_create_google_user)
 from ingest import ingest_pdf
-from supabase_storage import (
-    is_supabase_configured, ensure_buckets_exist,
-    upload_profile_image, delete_profile_image,
-    upload_document, get_document_url, download_document, delete_document
-)
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -27,9 +22,26 @@ app     = FastAPI()
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-create_tables()
-ensure_user_columns()  # Ensure new columns exist
-ensure_buckets_exist()  # Ensure Supabase storage buckets exist
+# Database initialization
+try:
+    create_tables()
+    ensure_user_columns()
+except Exception as e:
+    print(f"Warning: Database initialization error: {e}")
+
+# Supabase initialization (optional - app works without it)
+try:
+    from supabase_storage import (
+        is_supabase_configured, ensure_buckets_exist,
+        upload_profile_image, delete_profile_image,
+        upload_document, get_document_url, download_document, delete_document
+    )
+    if is_supabase_configured():
+        ensure_buckets_exist()
+    else:
+        print("Warning: Supabase not configured. File uploads will be disabled.")
+except Exception as e:
+    print(f"Warning: Supabase initialization error: {e}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -140,6 +152,8 @@ async def upload_profile_photo(
     db: Session = Depends(get_db)
 ):
     """Upload a profile photo to Supabase Storage"""
+    from supabase_storage import is_supabase_configured, upload_profile_image
+    
     # Check if Supabase is configured
     if not is_supabase_configured():
         raise HTTPException(500, "Image upload service not configured. Please contact support.")
@@ -177,6 +191,8 @@ async def delete_profile_photo(
     db: Session = Depends(get_db)
 ):
     """Delete profile photo and revert to initial"""
+    from supabase_storage import is_supabase_configured, delete_profile_image
+    
     # Try to delete from Supabase if it was uploaded
     if current_user.profile_image_source == ProfileImageSource.UPLOAD.value:
         if is_supabase_configured():
@@ -244,6 +260,8 @@ async def upload_pdf(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    from supabase_storage import is_supabase_configured, upload_document
+    
     # Check if Supabase is configured
     if not is_supabase_configured():
         raise HTTPException(500, "Storage service not configured. Please contact support.")
@@ -322,6 +340,8 @@ async def get_document_file(
     db: Session = Depends(get_db)
 ):
     """Get a signed URL for a document or redirect to it"""
+    from supabase_storage import get_document_url
+    
     # Find the document
     doc = db.query(Document).filter(Document.id == document_id).first()
     
@@ -347,6 +367,8 @@ async def download_document_file(
     db: Session = Depends(get_db)
 ):
     """Download a document file directly"""
+    from supabase_storage import download_document
+    
     # Find the document
     doc = db.query(Document).filter(Document.id == document_id).first()
     
