@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from database import get_db, User
 import os, uuid
 import re
+import hashlib
+import secrets
 
 # ── PASSWORD HASHING ───────────────────────────────────────
 # Argon2 is a modern password hashing algorithm.
@@ -51,6 +53,22 @@ JWT_SECRET    = os.getenv("JWT_SECRET", "change-this-in-production")
 JWT_ALGORITHM = "HS256"       # HMAC SHA-256 — the signing algorithm
 JWT_EXPIRY    = 60 * 24 * 7  # 7 days in minutes
 
+
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def hash_verification_value(value: str) -> str:
+    return hashlib.sha256(f"{value}:{JWT_SECRET}".encode("utf-8")).hexdigest()
+
+
+def generate_otp_code() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
+
+
+def generate_magic_token() -> str:
+    return secrets.token_urlsafe(32)
+
 def create_token(user_id: str, email: str) -> str:
     payload = {
         "sub": user_id,        # "sub" = subject = who this token is for
@@ -83,6 +101,8 @@ def get_current_user(
     user    = db.query(User).filter(User.id == payload["sub"]).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
     return user
 
 # ── GOOGLE OAUTH VERIFICATION ──────────────────────────────
@@ -104,7 +124,8 @@ def get_or_create_google_user(db: Session, google_info: dict) -> User:
     from database import ProfileImageSource
     
     # Check if user already exists
-    user = db.query(User).filter(User.email == google_info["email"]).first()
+    email = normalize_email(google_info["email"])
+    user = db.query(User).filter(User.email == email).first()
     if user:
         # Update Google picture if user doesn't have a custom uploaded one
         if user.profile_image_source != ProfileImageSource.UPLOAD.value:
