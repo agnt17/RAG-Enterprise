@@ -22,3 +22,4 @@ google-auth
 requests
 email-validator
 slowapi
+supabase

@@ -116,7 +116,8 @@ def query_with_sources(
             seen.add(page_num)
             sources.append({
                 "page":   page_num,
-                "source": source
+                "source": source,
+                "content": doc.page_content[:300]
             })
 
     # Sort by page number ascending

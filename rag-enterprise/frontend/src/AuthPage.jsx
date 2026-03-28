@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { GoogleLogin } from "@react-oauth/google"
 import axios from "axios"
+import { ButtonLoader } from "./Loader"
 
 const API = (
   import.meta.env.PROD
@@ -144,9 +145,9 @@ export default function AuthPage({ onLogin }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-400 text-gray-950 font-bold text-sm transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-400 text-gray-950 font-bold text-sm transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
+              {loading ? <ButtonLoader text="Please wait..." /> : mode === "login" ? "Sign In" : "Create Account"}
             </button>
           </form>
 
