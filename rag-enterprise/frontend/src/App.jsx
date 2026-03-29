@@ -365,9 +365,18 @@ export default function App() {
     } catch (err) {
       const s = err.response?.status
       const d = err.response?.data?.detail
-      if (s === 429) toast.error("Upload limit reached. Max 10/day.")
-      else if (s === 400) toast.error(d || "Invalid file.")
-      else toast.error("Upload failed. Check your connection.")
+      
+      // Handle plan limit errors
+      if (s === 403 && d?.upgrade_required) {
+        toast.error(d.message)
+        toast.info("Upgrade your plan for more documents!", { duration: 5000 })
+      } else if (s === 429) {
+        toast.error("Upload limit reached. Max 10/day.")
+      } else if (s === 400) {
+        toast.error(typeof d === 'string' ? d : d?.message || "Invalid file.")
+      } else {
+        toast.error("Upload failed. Check your connection.")
+      }
     }
     setUploading(false)
     if (fileRef.current) fileRef.current.value = ""
@@ -450,9 +459,16 @@ export default function App() {
         time: getTime()
       }])
     } catch (err) {
-      const msg = err.response?.status === 429
-        ? "Daily query limit reached. Upgrade to Pro for more."
-        : "Something went wrong. Please try again."
+      let msg = "Something went wrong. Please try again."
+      
+      // Handle plan limit errors
+      if (err.response?.status === 403 && err.response?.data?.detail?.upgrade_required) {
+        const detail = err.response.data.detail
+        msg = `📊 ${detail.message}\n\n👉 [Upgrade your plan](/upgrade) to continue asking questions.`
+      } else if (err.response?.status === 429) {
+        msg = "Daily query limit reached. Upgrade to Pro for more."
+      }
+      
       setMessages(prev => [...prev, { role: "ai", text: msg, sources: [], time: getTime() }])
     }
     setLoading(false)
@@ -478,7 +494,12 @@ export default function App() {
     </div>
   )
 
-  if (!token) return <AuthPage onLogin={handleLogin} />
+  if (!token) return (
+    <>
+      <AuthPage onLogin={handleLogin} />
+      <ToastContainer resolvedTheme="dark" />
+    </>
+  )
 
   // ── Render ────────────────────────────────────────────────
   return (

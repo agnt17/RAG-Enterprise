@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { GoogleLogin } from "@react-oauth/google"
 import axios from "axios"
 import { ButtonLoader } from "./Loader"
+import { toast } from "./Toast"
 
 const API = (
   import.meta.env.PROD
@@ -42,6 +43,7 @@ export default function AuthPage({ onLogin }) {
     setError("")
     try {
       const res = await axios.post(`${API}/verify-email`, { email, token })
+      toast.success("🎉 Email verified successfully! Welcome aboard!")
       onLogin(res.data.token, res.data.user)
     } catch (err) {
       setError(parseError(err, "Magic link is invalid or expired. Request a new email."))
@@ -89,7 +91,9 @@ export default function AuthPage({ onLogin }) {
         setVerificationEmail(res.data.email || payload.email)
         setResendCooldown(res.data.resend_after_seconds || 60)
         setInfo("We sent a verification code and a magic link to your email.")
+        toast.info("📧 Verification email sent! Check your inbox.")
       } else {
+        toast.success(mode === "login" ? "👋 Welcome back!" : "🎉 Account created successfully!")
         onLogin(res.data.token, res.data.user)
       }
     } catch (err) {
@@ -98,8 +102,10 @@ export default function AuthPage({ onLogin }) {
         setMode("verify")
         setVerificationEmail(detail.email || form.email.trim().toLowerCase())
         setInfo("Your account is pending verification. Enter OTP or use the link in your email.")
+        toast.info("📧 Please verify your email to continue.")
       } else {
         setError(parseError(err, "Something went wrong"))
+        toast.error(parseError(err, "Something went wrong"))
       }
     }
     setLoading(false)
@@ -119,9 +125,11 @@ export default function AuthPage({ onLogin }) {
         email: verificationEmail.trim().toLowerCase(),
         otp: verifyCode.trim()
       })
+      toast.success("🎉 Email verified successfully! Welcome aboard!")
       onLogin(res.data.token, res.data.user)
     } catch (err) {
       setError(parseError(err, "Verification failed. Check your code and try again."))
+      toast.error("Invalid code. Please try again.")
     }
     setLoading(false)
   }
@@ -137,10 +145,12 @@ export default function AuthPage({ onLogin }) {
       })
       setResendCooldown(res.data.resend_after_seconds || 60)
       setInfo("A new verification email has been sent.")
+      toast.success("📧 New verification code sent!")
     } catch (err) {
       const retryAfter = detailRetryAfter(err)
       if (retryAfter > 0) setResendCooldown(retryAfter)
       setError(parseError(err, "Could not resend verification email."))
+      toast.error("Could not resend email. Try again later.")
     }
     setLoading(false)
   }
@@ -158,9 +168,11 @@ export default function AuthPage({ onLogin }) {
       const res = await axios.post(`${API}/auth/google`, {
         token: credentialResponse.credential
       })
+      toast.success("👋 Welcome! Signed in with Google.")
       onLogin(res.data.token, res.data.user)
     } catch {
       setError("Google sign-in failed. Try again.")
+      toast.error("Google sign-in failed. Try again.")
     }
     setLoading(false)
   }

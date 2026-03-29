@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, Enum, inspect, text
+from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Integer, Enum, inspect, text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -41,6 +41,20 @@ class User(Base):
     is_active            = Column(Boolean, default=True)
     created_at           = Column(DateTime, default=datetime.utcnow)
     last_login           = Column(DateTime, nullable=True)
+    # Billing fields
+    billing_cycle        = Column(String, nullable=True)   # "monthly" or "yearly"
+    plan_started_at      = Column(DateTime, nullable=True)
+    plan_expires_at      = Column(DateTime, nullable=True)
+    cancelled_at         = Column(DateTime, nullable=True)  # When subscription was cancelled
+    # User profession for targeted tips
+    profession           = Column(String, nullable=True)  # "law_firm", "ca_firm", "other"
+    # Email verification fields
+    email_verified                = Column(Boolean, default=False)
+    email_verification_code_hash  = Column(String, nullable=True)
+    email_verification_token_hash = Column(String, nullable=True)
+    email_verification_expires_at = Column(DateTime, nullable=True)
+    email_verification_attempts   = Column(Integer, default=0)
+    email_verification_sent_at    = Column(DateTime, nullable=True)
 
 # ── DOCUMENT TABLE ─────────────────────────────────────────
 # Each uploaded PDF gets its own row
@@ -71,6 +85,66 @@ class Conversation(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+# ── USAGE LOG TABLE ───────────────────────────────────────
+# Track usage for plan enforcement (questions, uploads, etc.)
+class UsageLog(Base):
+    __tablename__ = "usage_logs"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(String, nullable=False, index=True)
+    action     = Column(String, nullable=False)  # "question", "upload", "download"
+    extra_data = Column(String, nullable=True)   # JSON string with extra info
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+# ── COUPON TABLE ──────────────────────────────────────────
+# Promo codes for discounts
+class Coupon(Base):
+    __tablename__ = "coupons"
+
+    id              = Column(String, primary_key=True)  # Coupon code (e.g., "LAUNCH20")
+    discount_type   = Column(String, nullable=False)    # "percentage" or "flat"
+    discount_value  = Column(Float, nullable=False)     # 20 for 20% or 200 for ₹200
+    applicable_plans = Column(String, nullable=True)    # JSON array: ["basic", "pro"] or null for all
+    min_amount      = Column(Float, default=0)          # Minimum order amount
+    max_uses        = Column(Integer, nullable=True)    # Max total uses (null = unlimited)
+    used_count      = Column(Integer, default=0)        # Current usage count
+    per_user_limit  = Column(Integer, default=1)        # Max uses per user
+    valid_from      = Column(DateTime, default=datetime.utcnow)
+    valid_until     = Column(DateTime, nullable=True)   # null = no expiry
+    is_active       = Column(Boolean, default=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+# ── COUPON USAGE TABLE ────────────────────────────────────
+# Track which users used which coupons
+class CouponUsage(Base):
+    __tablename__ = "coupon_usages"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    coupon_id  = Column(String, nullable=False, index=True)
+    user_id    = Column(String, nullable=False, index=True)
+    used_at    = Column(DateTime, default=datetime.utcnow)
+
+# ── PAYMENT/TRANSACTION TABLE ─────────────────────────────
+# Billing history for users
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id                  = Column(String, primary_key=True)  # UUID
+    user_id             = Column(String, nullable=False, index=True)
+    razorpay_order_id   = Column(String, nullable=True)
+    razorpay_payment_id = Column(String, nullable=True)
+    plan                = Column(String, nullable=False)    # "basic", "pro"
+    billing_cycle       = Column(String, nullable=False)    # "monthly", "yearly"
+    amount              = Column(Float, nullable=False)     # Total paid in rupees
+    base_amount         = Column(Float, nullable=True)      # Before discount
+    discount_amount     = Column(Float, default=0)          # Coupon discount
+    gst_amount          = Column(Float, nullable=True)      # GST component
+    coupon_code         = Column(String, nullable=True)     # Applied coupon
+    status              = Column(String, default="pending") # pending, success, failed, refunded
+    payment_method      = Column(String, nullable=True)     # card, upi, netbanking
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    completed_at        = Column(DateTime, nullable=True)
+
 def _ensure_user_columns():
     inspector = inspect(engine)
     if "users" not in inspector.get_table_names():
@@ -84,6 +158,13 @@ def _ensure_user_columns():
         "email_verification_expires_at": "ALTER TABLE users ADD COLUMN email_verification_expires_at TIMESTAMP",
         "email_verification_attempts": "ALTER TABLE users ADD COLUMN email_verification_attempts INTEGER DEFAULT 0",
         "email_verification_sent_at": "ALTER TABLE users ADD COLUMN email_verification_sent_at TIMESTAMP",
+        # Billing columns
+        "billing_cycle": "ALTER TABLE users ADD COLUMN billing_cycle VARCHAR",
+        "plan_started_at": "ALTER TABLE users ADD COLUMN plan_started_at TIMESTAMP",
+        "plan_expires_at": "ALTER TABLE users ADD COLUMN plan_expires_at TIMESTAMP",
+        "cancelled_at": "ALTER TABLE users ADD COLUMN cancelled_at TIMESTAMP",
+        # Profession for targeted tips
+        "profession": "ALTER TABLE users ADD COLUMN profession VARCHAR",
     }
 
     with engine.begin() as connection:
