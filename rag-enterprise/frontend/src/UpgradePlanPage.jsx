@@ -288,12 +288,20 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
   const formatPrice = (amount) => `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   
   const hasCredit = breakdown.credit > 0
-  const hasCoupon = couponDiscount && couponDiscount.discount_amount > 0
+  const hasCoupon = couponDiscount && couponDiscount.discount_value > 0
   const currentPlanName = user?.plan ? user.plan.charAt(0).toUpperCase() + user.plan.slice(1) : "Free"
   const newPlanName = selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)
   
-  // Calculate adjusted totals with coupon
-  const couponAmount = hasCoupon ? couponDiscount.discount_amount : 0
+  // Calculate coupon discount based on SUBTOTAL (after credit), not base price
+  // This matches backend logic in /payment/create-order
+  let couponAmount = 0
+  if (hasCoupon) {
+    if (couponDiscount.discount_type === "percentage") {
+      couponAmount = Math.round(breakdown.subtotal * (couponDiscount.discount_value / 100) * 100) / 100
+    } else {
+      couponAmount = Math.min(couponDiscount.discount_value, breakdown.subtotal)
+    }
+  }
   const adjustedSubtotal = Math.max(0, breakdown.subtotal - couponAmount)
   const adjustedGst = adjustedSubtotal * (breakdown.gst_rate / 100)
   const adjustedTotal = adjustedSubtotal + adjustedGst
