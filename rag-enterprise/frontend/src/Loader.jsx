@@ -51,7 +51,7 @@ export const PageLoader = ({ theme = "dark", message = "Loading..." }) => {
 
 // Inline loader for buttons
 export const ButtonLoader = ({ text = "Loading...", className = "" }) => (
-  <span className={`flex items-center gap-2 ${className}`}>
+  <span className={`flex items-center justify-center gap-2 ${className}`}>
     <Spinner size="sm" />
     <span>{text}</span>
   </span>

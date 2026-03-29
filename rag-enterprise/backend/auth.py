@@ -133,6 +133,8 @@ def get_or_create_google_user(db: Session, google_info: dict) -> User:
             if google_picture:
                 user.picture = google_picture
                 user.profile_image_source = ProfileImageSource.GOOGLE.value
+        # Google users are always verified (Google verified their email)
+        user.email_verified = True
         user.last_login = datetime.utcnow()
         db.commit()
         return user
@@ -145,6 +147,7 @@ def get_or_create_google_user(db: Session, google_info: dict) -> User:
         picture              = google_picture,
         google_id            = google_info.get("sub"),
         profile_image_source = ProfileImageSource.GOOGLE.value if google_picture else ProfileImageSource.INITIAL.value,
+        email_verified       = True,  # Google users are pre-verified
     )
     db.add(user)
     db.commit()

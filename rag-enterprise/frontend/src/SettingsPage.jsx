@@ -37,6 +37,48 @@ const IconLock = () => (
   </svg>
 )
 
+const IconDocument = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+)
+
+const IconMessage = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+)
+
+const IconReceipt = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z" />
+    <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+    <path d="M12 17V7" />
+  </svg>
+)
+
+const IconX = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+)
+
+const IconAlertTriangle = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+)
+
+const IconCheck = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+)
+
 const planDetails = {
   free: {
     name: "Free",
@@ -45,13 +87,13 @@ const planDetails = {
   },
   basic: {
     name: "Basic",
-    price: "$19/month",
+    price: "₹999/month",
     color: "blue",
     features: ["50 documents", "50 MB file limit", "1,000 questions/month"]
   },
   pro: {
     name: "Pro",
-    price: "$49/month",
+    price: "₹2,999/month",
     color: "purple",
     features: ["Unlimited documents", "100 MB file limit", "Unlimited questions"]
   },
@@ -68,6 +110,12 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
   const fileInputRef = useRef(null)
 
   const [user, setUser] = useState(initialUser)
+  const [usage, setUsage] = useState(null)
+  const [loadingUsage, setLoadingUsage] = useState(true)
+  const [billingHistory, setBillingHistory] = useState([])
+  const [loadingBilling, setLoadingBilling] = useState(true)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     currentPassword: "",
@@ -81,6 +129,42 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
 
   const isDark = theme === "dark"
   const currentPlan = planDetails[user?.plan] || planDetails.free
+
+  // Fetch usage stats
+  useEffect(() => {
+    const fetchUsage = async () => {
+      if (!token) return
+      try {
+        const res = await axios.get(`${API}/usage`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        setUsage(res.data)
+      } catch (err) {
+        console.error("Failed to fetch usage:", err)
+      } finally {
+        setLoadingUsage(false)
+      }
+    }
+    fetchUsage()
+  }, [token])
+
+  // Fetch billing history
+  useEffect(() => {
+    const fetchBilling = async () => {
+      if (!token) return
+      try {
+        const res = await axios.get(`${API}/billing/history`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        setBillingHistory(res.data.payments || [])
+      } catch (err) {
+        console.error("Failed to fetch billing:", err)
+      } finally {
+        setLoadingBilling(false)
+      }
+    }
+    fetchBilling()
+  }, [token])
 
   // Sync user prop to local state when it changes (e.g., after async fetch completes)
   useEffect(() => {
@@ -102,6 +186,12 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
     window.addEventListener("beforeunload", handleBeforeUnload)
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [hasUnsavedChanges])
+
+  // Helper to calculate usage percentage
+  const getUsagePercent = (used, limit) => {
+    if (limit === "Unlimited") return 0
+    return Math.min((used / limit) * 100, 100)
+  }
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -165,6 +255,26 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
       toast.error(err.response?.data?.detail || "Failed to remove photo")
     } finally {
       setRemovingPhoto(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    setCancelling(true)
+    try {
+      await axios.post(`${API}/subscription/cancel`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      toast.success("Subscription cancelled. You'll retain access until the end of your billing period.")
+      setShowCancelModal(false)
+      // Refresh user data
+      const userRes = await axios.get(`${API}/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setUser(userRes.data)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to cancel subscription")
+    } finally {
+      setCancelling(false)
     }
   }
 
@@ -349,6 +459,12 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                     </span>
                   )}
                 </div>
+                {user?.plan_expires_at && user?.plan !== "free" && (
+                  <p className={`text-xs mb-2 ${isDark ? "text-gray-500" : "text-slate-500"}`}>
+                    {user.billing_cycle === "yearly" ? "Yearly" : "Monthly"} • Expires:{" "}
+                    {new Date(user.plan_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                )}
                 <ul className="space-y-1">
                   {currentPlan.features.map((feature, i) => (
                     <li key={i} className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>
@@ -370,6 +486,113 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
             >
               {user?.plan === "enterprise" ? "You have the best plan" : "Upgrade Plan"}
             </button>
+
+            {/* Prompting Tips Link for premium users */}
+            {user?.plan && user.plan !== "free" && (
+              <button
+                onClick={() => navigate(`/welcome?plan=${user.plan}`)}
+                className={`mt-3 w-full py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer
+                  ${isDark 
+                    ? "bg-purple-900/30 text-purple-400 hover:bg-purple-900/50" 
+                    : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                  }`}
+              >
+                💡 View Prompting Tips
+              </button>
+            )}
+          </div>
+
+          {/* Usage Statistics Section */}
+          <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+            <h2 className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
+              Usage This Month
+            </h2>
+            
+            {loadingUsage ? (
+              <div className="flex justify-center py-8">
+                <Spinner size="md" />
+              </div>
+            ) : usage ? (
+              <div className="space-y-6">
+                {/* Documents Usage */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <IconDocument />
+                      <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-slate-700"}`}>
+                        Documents
+                      </span>
+                    </div>
+                    <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>
+                      {usage.documents.used} / {usage.documents.limit}
+                    </span>
+                  </div>
+                  <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-gray-700" : "bg-slate-200"}`}>
+                    <div 
+                      className={`h-full rounded-full transition-all ${
+                        getUsagePercent(usage.documents.used, usage.documents.limit) > 90 
+                          ? "bg-red-500" 
+                          : getUsagePercent(usage.documents.used, usage.documents.limit) > 70 
+                            ? "bg-amber-500" 
+                            : "bg-blue-500"
+                      }`}
+                      style={{ width: `${getUsagePercent(usage.documents.used, usage.documents.limit)}%` }}
+                    />
+                  </div>
+                  {usage.documents.remaining !== "Unlimited" && (
+                    <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-slate-500"}`}>
+                      {usage.documents.remaining} documents remaining
+                    </p>
+                  )}
+                </div>
+
+                {/* Questions Usage */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <IconMessage />
+                      <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-slate-700"}`}>
+                        Questions
+                      </span>
+                    </div>
+                    <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>
+                      {usage.questions.used} / {usage.questions.limit}
+                    </span>
+                  </div>
+                  <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-gray-700" : "bg-slate-200"}`}>
+                    <div 
+                      className={`h-full rounded-full transition-all ${
+                        getUsagePercent(usage.questions.used, usage.questions.limit) > 90 
+                          ? "bg-red-500" 
+                          : getUsagePercent(usage.questions.used, usage.questions.limit) > 70 
+                            ? "bg-amber-500" 
+                            : "bg-green-500"
+                      }`}
+                      style={{ width: `${getUsagePercent(usage.questions.used, usage.questions.limit)}%` }}
+                    />
+                  </div>
+                  {usage.questions.remaining !== "Unlimited" && (
+                    <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-slate-500"}`}>
+                      {usage.questions.remaining} questions remaining this month
+                    </p>
+                  )}
+                </div>
+
+                {/* File Size Limit Info */}
+                <div className={`flex items-center justify-between pt-4 border-t ${isDark ? "border-gray-800" : "border-slate-200"}`}>
+                  <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>
+                    Max file size
+                  </span>
+                  <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-slate-700"}`}>
+                    {usage.file_size_limit_mb} MB
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className={`text-sm ${isDark ? "text-gray-500" : "text-slate-500"}`}>
+                Unable to load usage data
+              </p>
+            )}
           </div>
 
           {/* Account Details Section */}
@@ -504,8 +727,208 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               </div>
             </form>
           </div>
+
+          {/* Billing History Section */}
+          {user?.plan !== "free" && (
+            <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+              <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+                <IconReceipt />
+                Billing History
+              </h2>
+              
+              {loadingBilling ? (
+                <div className="flex justify-center py-8">
+                  <Spinner size="md" />
+                </div>
+              ) : billingHistory.length === 0 ? (
+                <p className={`text-sm ${isDark ? "text-gray-500" : "text-slate-500"}`}>
+                  No billing history available yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {billingHistory.slice(0, 5).map((payment, idx) => (
+                    <div 
+                      key={idx}
+                      className={`flex items-center justify-between p-4 rounded-lg ${
+                        isDark ? "bg-gray-800/50" : "bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          payment.status === "success" 
+                            ? "bg-green-100 text-green-600" 
+                            : payment.status === "failed" 
+                              ? "bg-red-100 text-red-600" 
+                              : "bg-yellow-100 text-yellow-600"
+                        }`}>
+                          {payment.status === "success" ? <IconCheck /> : <IconAlertTriangle />}
+                        </div>
+                        <div>
+                          <p className={`font-medium ${isDark ? "text-white" : "text-slate-900"}`}>
+                            {payment.plan?.charAt(0).toUpperCase() + payment.plan?.slice(1)} Plan ({payment.billing_cycle})
+                          </p>
+                          <p className={`text-xs ${isDark ? "text-gray-500" : "text-slate-500"}`}>
+                            {new Date(payment.date).toLocaleDateString('en-IN', { 
+                              day: 'numeric', month: 'short', year: 'numeric' 
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
+                          ₹{payment.amount?.toLocaleString('en-IN')}
+                        </p>
+                        <p className={`text-xs text-green-500`}>
+                          Paid
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Plan Expiry Warning */}
+          {user?.days_until_expiry && user.days_until_expiry <= 7 && user.days_until_expiry > 0 && !user?.is_cancelled && (
+            <div className={`rounded-2xl border p-6 ${isDark ? "bg-orange-900/20 border-orange-700/30" : "bg-orange-50 border-orange-200"}`}>
+              <div className="flex items-start gap-4">
+                <div className="text-orange-500">
+                  <IconAlertTriangle />
+                </div>
+                <div className="flex-1">
+                  <h3 className={`font-semibold ${isDark ? "text-orange-300" : "text-orange-800"}`}>
+                    Your plan expires in {user.days_until_expiry} day{user.days_until_expiry !== 1 ? 's' : ''}
+                  </h3>
+                  <p className={`text-sm mt-1 ${isDark ? "text-orange-400/70" : "text-orange-700"}`}>
+                    Renew now to keep your premium features and avoid losing access to your documents beyond free tier limits.
+                  </p>
+                  <button
+                    onClick={() => navigate("/upgrade")}
+                    className="mt-3 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    Renew Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cancellation Section */}
+          {user?.plan !== "free" && !user?.is_cancelled && (
+            <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+              <h2 className={`text-lg font-semibold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+                Cancel Subscription
+              </h2>
+              <p className={`text-sm mb-4 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
+                Your subscription will remain active until the end of your current billing period. 
+                After that, your account will be downgraded to the Free plan.
+              </p>
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer
+                  ${isDark 
+                    ? "bg-red-900/30 text-red-400 hover:bg-red-900/50" 
+                    : "bg-red-50 text-red-600 hover:bg-red-100"
+                  }`}
+              >
+                Cancel Subscription
+              </button>
+            </div>
+          )}
+
+          {/* Already Cancelled Notice */}
+          {user?.is_cancelled && user?.plan !== "free" && (
+            <div className={`rounded-2xl border p-6 ${isDark ? "bg-yellow-900/20 border-yellow-700/30" : "bg-yellow-50 border-yellow-200"}`}>
+              <div className="flex items-start gap-4">
+                <div className="text-yellow-500">
+                  <IconAlertTriangle />
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${isDark ? "text-yellow-300" : "text-yellow-800"}`}>
+                    Subscription Cancelled
+                  </h3>
+                  <p className={`text-sm mt-1 ${isDark ? "text-yellow-400/70" : "text-yellow-700"}`}>
+                    Your {currentPlan.name} plan will remain active until {user?.plan_expires_at 
+                      ? new Date(user.plan_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : 'the end of your billing period'
+                    }. After that, you'll be moved to the Free plan.
+                  </p>
+                  <button
+                    onClick={() => navigate("/upgrade")}
+                    className="mt-3 px-4 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    Resubscribe
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Cancel Subscription Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className={`max-w-md w-full rounded-2xl p-6 ${isDark ? "bg-gray-900" : "bg-white"}`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
+                Cancel Subscription?
+              </h3>
+              <button 
+                onClick={() => setShowCancelModal(false)}
+                className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                  isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-slate-100 text-slate-600"
+                }`}
+              >
+                <IconX />
+              </button>
+            </div>
+            
+            <div className={`p-4 rounded-lg mb-4 ${isDark ? "bg-red-900/20" : "bg-red-50"}`}>
+              <p className={`text-sm ${isDark ? "text-red-300" : "text-red-700"}`}>
+                <strong>You'll lose access to:</strong>
+              </p>
+              <ul className={`text-sm mt-2 space-y-1 ${isDark ? "text-red-400/80" : "text-red-600"}`}>
+                {currentPlan.features.map((feature, i) => (
+                  <li key={i}>• {feature}</li>
+                ))}
+              </ul>
+            </div>
+
+            <p className={`text-sm mb-4 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
+              Your current plan will remain active until{" "}
+              <strong>
+                {user?.plan_expires_at 
+                  ? new Date(user.plan_expires_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : 'the end of your billing period'
+                }
+              </strong>
+              . After that, you'll be downgraded to Free.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className={`flex-1 py-2.5 rounded-lg font-medium transition-colors cursor-pointer
+                  ${isDark 
+                    ? "bg-gray-800 hover:bg-gray-700 text-gray-300" 
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+              >
+                Keep Subscription
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={cancelling}
+                className="flex-1 py-2.5 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {cancelling ? <ButtonLoader text="Cancelling..." /> : "Yes, Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
