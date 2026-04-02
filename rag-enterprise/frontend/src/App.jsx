@@ -250,6 +250,7 @@ export default function App() {
   const [switching, setSwitching] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024)
   const [openMenuId, setOpenMenuId] = useState(null)
+  const [sourceModal, setSourceModal] = useState(null) // {page, content, source} or null
 
   const [token, setToken] = useState(localStorage.getItem("token"))
   const [user, setUser] = useState(null)
@@ -308,7 +309,7 @@ export default function App() {
           setMessages(saved.map(m => ({
             role: m.type === "human" ? "user" : "ai",
             text: m.content,
-            sources: [],
+            sources: m.sources || [],  // Restore sources from saved history
             time: formatTimestamp(m.timestamp)
           })))
         }
@@ -760,40 +761,19 @@ export default function App() {
                                 <IconBookmark /> Sources:
                               </span>
                               {msg.sources.map((s, idx) => (
-                                <div key={idx} className="relative group/tooltip inline-block">
-
-                                  {/* The page badge */}
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-mono cursor-pointer
-      ${t.citationBg}`}>
-                                    Page {s.page}
-                                  </span>
-
-                                  {/* Tooltip — appears on hover */}
-                                  {s.content && (
-                                    <div className={`
-        absolute bottom-full left-0 mb-2 w-72 p-3 rounded-xl text-xs leading-relaxed
-        shadow-xl border z-50
-        invisible group-hover/tooltip:visible
-        opacity-0 group-hover/tooltip:opacity-100
-        transition-all duration-200
-        ${resolvedTheme === "dark"
-                                        ? "bg-gray-800 border-gray-700 text-gray-300"
-                                        : "bg-white border-slate-200 text-slate-700 shadow-slate-200"
-                                      }`}>
-
-                                      {/* Page label */}
-                                      <p className={`text-xs font-semibold mb-1.5 ${resolvedTheme === "dark" ? "text-blue-400" : "text-blue-600"}`}>
-                                        Page {s.page} · Source excerpt
-                                      </p>
-
-                                      {/* Chunk text */}
-                                      <p className="leading-relaxed">
-                                        "{s.content.trim()}{s.content.length >= 300 ? "..." : ""}"
-                                      </p>
-
-                                    </div>
-                                  )}
-                                </div>
+                                <button
+                                  key={idx}
+                                  onClick={() => setSourceModal(s)}
+                                  className={`text-xs px-2.5 py-1 rounded-full font-mono cursor-pointer
+                                    transition-all duration-200 hover:scale-105 active:scale-95
+                                    ${resolvedTheme === "dark" 
+                                      ? "bg-blue-900/40 text-blue-300 hover:bg-blue-800/60 border border-blue-700/50" 
+                                      : "bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200"
+                                    }`}
+                                  title="Click to view source excerpt"
+                                >
+                                  📄 Page {s.page}
+                                </button>
                               ))}
                             </div>
                           )}
@@ -860,6 +840,90 @@ export default function App() {
           </p>
         </div>
       </div>
+
+      {/* Source Citation Modal */}
+      {sourceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSourceModal(null)}
+          />
+          
+          {/* Modal */}
+          <div className={`relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden
+            ${resolvedTheme === "dark" ? "bg-gray-900" : "bg-white"}`}>
+            
+            {/* Header */}
+            <div className={`px-6 py-4 border-b flex items-center justify-between
+              ${resolvedTheme === "dark" ? "border-gray-800 bg-gray-800/50" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center
+                  ${resolvedTheme === "dark" ? "bg-blue-900/50 text-blue-400" : "bg-blue-100 text-blue-600"}`}>
+                  <span className="text-lg">📄</span>
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${resolvedTheme === "dark" ? "text-white" : "text-slate-900"}`}>
+                    Page {sourceModal.page}
+                  </h3>
+                  <p className={`text-xs ${resolvedTheme === "dark" ? "text-gray-400" : "text-slate-500"}`}>
+                    Source excerpt from document
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSourceModal(null)}
+                className={`p-2 rounded-lg transition-colors cursor-pointer
+                  ${resolvedTheme === "dark" 
+                    ? "hover:bg-gray-700 text-gray-400 hover:text-white" 
+                    : "hover:bg-slate-200 text-slate-500 hover:text-slate-700"}`}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="px-6 py-5 max-h-[60vh] overflow-y-auto">
+              <div className={`p-4 rounded-xl border-l-4
+                ${resolvedTheme === "dark" 
+                  ? "bg-gray-800/50 border-blue-500 text-gray-300" 
+                  : "bg-slate-50 border-blue-500 text-slate-700"}`}>
+                <p className="text-sm leading-relaxed italic">
+                  "{sourceModal.content?.trim() || "No content preview available"}"
+                  {sourceModal.content?.length >= 300 && (
+                    <span className={`not-italic ${resolvedTheme === "dark" ? "text-gray-500" : "text-slate-400"}`}>
+                      {" "}[excerpt continues...]
+                    </span>
+                  )}
+                </p>
+              </div>
+              
+              <div className={`mt-4 flex items-center gap-2 text-xs
+                ${resolvedTheme === "dark" ? "text-gray-500" : "text-slate-500"}`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+                <span>This excerpt was retrieved from the document based on semantic similarity to your question.</span>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className={`px-6 py-4 border-t
+              ${resolvedTheme === "dark" ? "border-gray-800 bg-gray-800/30" : "border-slate-200 bg-slate-50"}`}>
+              <button
+                onClick={() => setSourceModal(null)}
+                className="w-full py-2.5 rounded-xl font-medium bg-gradient-to-r from-blue-600 to-purple-600 
+                  hover:from-blue-700 hover:to-purple-700 text-white transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ToastContainer resolvedTheme={resolvedTheme} />
     </div>
