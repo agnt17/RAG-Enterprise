@@ -10,13 +10,19 @@
 3. [Technology Stack](#3-technology-stack)
 4. [Backend Architecture](#4-backend-architecture)
 5. [Frontend Architecture](#5-frontend-architecture)
+   - [5.6 Profile Dropdown Component](#56-profile-dropdown-component)
 6. [Database Design](#6-database-design)
 7. [Authentication & Authorization](#7-authentication--authorization)
+   - [7.5 Email Verification Flow](#75-email-verification-flow)
 8. [RAG Pipeline](#8-rag-pipeline)
+   - [8.5 Source Citations System](#85-source-citations-system)
 9. [Payment & Subscription System](#9-payment--subscription-system)
+   - [9.5 Proration System](#95-proration-system-plan-upgrades)
+   - [9.6 Coupon System](#96-coupon-system)
 10. [Plan Enforcement & Usage Tracking](#10-plan-enforcement--usage-tracking)
 11. [API Reference](#11-api-reference)
 12. [Third-Party Integrations](#12-third-party-integrations)
+    - [12.6 Google OAuth (with clock skew handling)](#126-google-oauth)
 13. [Environment Configuration](#13-environment-configuration)
 14. [Deployment Architecture](#14-deployment-architecture)
 15. [Security Considerations](#15-security-considerations)
@@ -574,6 +580,79 @@ const resolvedTheme = themeMode === "system"
   : themeMode
 ```
 
+## 5.6 Profile Dropdown Component
+
+The ProfileDropdown provides user account access with theme switching, navigation, and logout.
+
+### Structure
+
+```jsx
+// ProfileDropdown.jsx
+<ProfileDropdown
+  user={user}                    // User object with name, email, picture
+  themeMode={themeMode}          // "light" | "dark" | "system"
+  setThemeMode={setThemeMode}    // Theme setter function
+  onLogout={handleLogout}        // Logout callback
+  resolvedTheme={resolvedTheme}  // Actual applied theme
+/>
+```
+
+### Menu Options
+
+| Option | Action | Route |
+|--------|--------|-------|
+| **Settings** | Navigate to settings | `/settings` |
+| **Upgrade Plan** | Navigate to pricing | `/upgrade` |
+| **Theme** | Opens submenu with Light/Dark/System | - |
+| **Help** | Navigate to FAQ | `/help` |
+| **Logout** | Clear token, redirect to auth | `/` |
+
+### Theme Submenu
+
+```
+┌─────────────────────────┐
+│ 👤 User Name            │
+│    user@email.com       │
+├─────────────────────────┤
+│ ⚙️  Settings            │
+│ 💎  Upgrade Plan        │
+│ 🎨  Theme            ▶  │───┐
+│ ❓  Help                │   │  ┌─────────────┐
+├─────────────────────────┤   └──│ ☀️ Light    │
+│ 🚪  Logout              │      │ 🌙 Dark     │
+└─────────────────────────┘      │ 💻 System ✓ │
+                                 └─────────────┘
+```
+
+### Click Outside Detection
+
+```javascript
+useEffect(() => {
+  const close = (e) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      setIsOpen(false)
+      setShowThemeSubmenu(false)
+    }
+  }
+  window.addEventListener("click", close)
+  return () => window.removeEventListener("click", close)
+}, [])
+```
+
+### Profile Image Logic
+
+```javascript
+// Display priority:
+// 1. User uploaded photo (profile_image_source === "upload")
+// 2. Google profile picture (profile_image_source === "google")
+// 3. First letter of name (fallback)
+
+const getProfileImage = () => {
+  if (user.picture) return <img src={user.picture} />
+  return <span>{user.name?.[0]?.toUpperCase() || "U"}</span>
+}
+```
+
 ---
 
 # 6. Database Design
@@ -930,6 +1009,171 @@ Benefits:
 - Fast document switching (just change namespace)
 - Easy cleanup on document deletion
 ```
+
+## 8.5 Source Citations System
+
+Source citations provide transparency by showing users exactly where answers come from in their documents.
+
+### Citation Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   SOURCE CITATIONS FLOW                              │
+│                                                                      │
+│  ┌───────────┐     ┌───────────┐     ┌───────────┐                  │
+│  │  Pinecone │ →   │  Extract  │ →   │  Format   │                  │
+│  │  Results  │     │  Metadata │     │  Sources  │                  │
+│  └───────────┘     └───────────┘     └─────┬─────┘                  │
+│                                            │                         │
+│       ┌────────────────────────────────────┘                         │
+│       │                                                              │
+│       ▼                                                              │
+│  ┌───────────┐     ┌───────────┐     ┌───────────┐                  │
+│  │  Store in │ →   │  Return   │ →   │  Display  │                  │
+│  │  Database │     │  to API   │     │  in Modal │                  │
+│  └───────────┘     └───────────┘     └───────────┘                  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Backend Implementation
+
+**File: `rag.py`**
+
+```python
+def query_with_sources(question, namespace, db, user_id, document_id):
+    # Retrieve documents with metadata
+    retrieved_docs = retriever.invoke(question)
+    
+    # Extract unique sources with deduplication
+    sources = []
+    seen = set()
+    for doc in retrieved_docs:
+        page = doc.metadata.get("page", 0) + 1  # Convert to 1-indexed
+        if page not in seen:
+            seen.add(page)
+            sources.append({
+                "page": page,
+                "source": doc.metadata.get("source", ""),
+                "content": doc.page_content[:300]  # First 300 chars
+            })
+    
+    sources.sort(key=lambda x: x["page"])
+    
+    # Generate answer...
+    
+    # Store sources with AI message in database
+    history_obj.add_message(AIMessage(content=answer), sources=sources)
+    
+    return {"answer": answer, "sources": sources}
+```
+
+### Source Persistence
+
+Sources are stored in the `Conversation.messages` JSON alongside AI responses:
+
+```python
+def add_message(self, message: BaseMessage, sources: list = None) -> None:
+    raw = json.loads(self.record.messages)
+    timestamp = datetime.utcnow().isoformat() + "Z"
+    
+    if isinstance(message, AIMessage):
+        msg_data = {
+            "type": "ai",
+            "content": message.content,
+            "timestamp": timestamp
+        }
+        if sources:
+            msg_data["sources"] = sources  # Persist with message
+        raw.append(msg_data)
+    
+    self.record.messages = json.dumps(raw)
+    self.db.commit()
+```
+
+**Stored Message Format:**
+```json
+{
+  "type": "ai",
+  "content": "The termination clause requires 30 days notice...",
+  "timestamp": "2024-01-15T10:30:15.000Z",
+  "sources": [
+    {"page": 4, "source": "contract.pdf", "content": "Clause 5.1: Either party..."},
+    {"page": 7, "source": "contract.pdf", "content": "Liability is limited to..."}
+  ]
+}
+```
+
+### Frontend Display
+
+**File: `App.jsx`**
+
+```jsx
+// Loading sources from history
+setMessages(saved.map(m => ({
+  role: m.type === "human" ? "user" : "ai",
+  text: m.content,
+  sources: m.sources || [],  // Restore from database
+  time: formatTimestamp(m.timestamp)
+})))
+
+// Clickable source badges
+{msg.sources?.map((s, idx) => (
+  <button
+    key={idx}
+    onClick={() => setSourceModal(s)}
+    className="text-xs px-2.5 py-1 rounded-full cursor-pointer"
+  >
+    📄 Page {s.page}
+  </button>
+))}
+
+// Source modal shows full excerpt
+{sourceModal && (
+  <div className="modal">
+    <h3>Page {sourceModal.page}</h3>
+    <p>"{sourceModal.content}"</p>
+  </div>
+)}
+```
+
+### API Response Format
+
+**POST `/query`** returns:
+
+```json
+{
+  "answer": "Based on the document, the termination clause...",
+  "sources": [
+    {
+      "page": 4,
+      "source": "contract.pdf",
+      "content": "Clause 5.1: Either party may terminate this agreement with 30 days written notice..."
+    },
+    {
+      "page": 7,
+      "source": "contract.pdf", 
+      "content": "Liability under this agreement shall be limited to the total fees paid..."
+    }
+  ]
+}
+```
+
+### Key Features
+
+| Feature | Implementation |
+|---------|---------------|
+| **Page Numbers** | Extracted from PyPDFLoader metadata (0-indexed → 1-indexed) |
+| **Deduplication** | Same page appears only once even if multiple chunks match |
+| **Persistence** | Sources stored in database, survive logout/login |
+| **Clickable UI** | Page badges open modal with full excerpt |
+| **Sorted Display** | Sources ordered by page number ascending |
+
+### Why This Matters for Law/CA Firms
+
+- **Audit Trail**: Users can verify exactly which part of a contract the AI referenced
+- **Citation Support**: "According to Page 4 of the agreement..." 
+- **Trust Building**: Transparency increases confidence in AI-generated answers
+- **Compliance**: Some regulations require showing sources for legal opinions
 
 ---
 
@@ -1504,6 +1748,30 @@ GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
 2. Enable Google+ API
 3. Create OAuth 2.0 Client ID
 4. Add authorized origins and redirect URIs
+
+**Token Verification with Clock Skew Tolerance:**
+
+Google tokens are time-sensitive. To handle minor clock differences between servers:
+
+```python
+# auth.py
+def verify_google_token(id_token_str: str) -> dict:
+    try:
+        info = id_token.verify_oauth2_token(
+            id_token_str,
+            google_requests.Request(),
+            os.getenv("GOOGLE_CLIENT_ID"),
+            clock_skew_in_seconds=30  # Allow 30 seconds tolerance
+        )
+        return info
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+```
+
+**Common Issues:**
+- `Token used too early` - Server clock is behind; add `clock_skew_in_seconds`
+- `Wrong audience` - `GOOGLE_CLIENT_ID` mismatch between frontend/backend
+- `Token expired` - Token is valid for ~1 hour; frontend should refresh
 
 ---
 
