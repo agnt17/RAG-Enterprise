@@ -54,13 +54,22 @@ class PostgresChatMessageHistory(BaseChatMessageHistory):
                 result.append(AIMessage(content=msg["content"]))
         return result
 
-    def add_message(self, message: BaseMessage) -> None:
+    def add_message(self, message: BaseMessage, sources: list = None) -> None:
+        """Add a message to the conversation history.
+        
+        Args:
+            message: The message to add (HumanMessage or AIMessage)
+            sources: Optional list of source citations (only for AI messages)
+        """
         raw = json.loads(self.record.messages)
         timestamp = datetime.utcnow().isoformat() + "Z"
         if isinstance(message, HumanMessage):
             raw.append({"type": "human", "content": message.content, "timestamp": timestamp})
         elif isinstance(message, AIMessage):
-            raw.append({"type": "ai", "content": message.content, "timestamp": timestamp})
+            msg_data = {"type": "ai", "content": message.content, "timestamp": timestamp}
+            if sources:
+                msg_data["sources"] = sources
+            raw.append(msg_data)
         self.record.messages = json.dumps(raw)
         self.db.commit()
 
@@ -161,9 +170,9 @@ def query_with_sources(
         "question":     question
     })
 
-    # Step 9 — save Q&A to history
+    # Step 9 — save Q&A to history (with sources for AI message)
     history_obj.add_message(HumanMessage(content=question))
-    history_obj.add_message(AIMessage(content=answer))
+    history_obj.add_message(AIMessage(content=answer), sources=sources)
 
     return {
         "answer":  answer,
