@@ -1,0 +1,132 @@
+# =============================================================================
+# Pre-commit Configuration for DocMind
+# =============================================================================
+# Pre-commit hooks run automatically before each git commit.
+# They catch issues BEFORE code reaches the remote repository.
+#
+# WHY PRE-COMMIT:
+# - Catch errors locally (faster feedback than CI)
+# - Enforce consistent code style
+# - Prevent committing secrets, large files, etc.
+#
+# SETUP:
+# 1. pip install pre-commit
+# 2. pre-commit install  (in repo root)
+# 3. Now hooks run automatically on git commit
+#
+# MANUAL RUN:
+# pre-commit run --all-files
+# =============================================================================
+
+repos:
+  # ─────────────────────────────────────────────────────────────────────────
+  # General hooks (all languages)
+  # ─────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Prevent commits to main branch
+      # WHY: Force use of feature branches and PRs
+      - id: no-commit-to-branch
+        args: [--branch, main]
+      
+      # Check for large files (> 500KB)
+      # WHY: Keep repo lightweight, use Git LFS for large files
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      
+      # Prevent merge conflict markers from being committed
+      # WHY: Incomplete merges break builds
+      - id: check-merge-conflict
+      
+      # Ensure files end with newline
+      # WHY: POSIX standard, prevents diff noise
+      - id: end-of-file-fixer
+      
+      # Remove trailing whitespace
+      # WHY: Clean diffs, consistent formatting
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      
+      # Check YAML syntax
+      # WHY: Catch config file errors early
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      
+      # Check JSON syntax
+      - id: check-json
+      
+      # Detect private keys
+      # WHY: SECURITY - never commit secrets
+      - id: detect-private-key
+      
+      # Check for case conflicts (Windows compatibility)
+      - id: check-case-conflict
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Python hooks (backend)
+  # ─────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      # Lint Python files
+      # WHY: Catch bugs, enforce style before commit
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^backend/
+      
+      # Format Python files
+      # WHY: Consistent formatting, no style debates
+      - id: ruff-format
+        files: ^backend/
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # JavaScript/TypeScript hooks (frontend)
+  # ─────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.56.0
+    hooks:
+      # Lint JS/JSX files
+      # WHY: Catch React issues, unused vars, etc.
+      - id: eslint
+        files: ^frontend/.*\.(js|jsx|ts|tsx)$
+        types: [file]
+        additional_dependencies:
+          - eslint@8.56.0
+          - eslint-plugin-react-hooks@4.6.0
+          - eslint-plugin-react-refresh@0.4.5
+          - globals@14.0.0
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Security scanning
+  # ─────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      # Scan for secrets in code
+      # WHY: SECURITY - catch accidental secret commits
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: package-lock.json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Commit message formatting
+  # ─────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.13.0
+    hooks:
+      # Enforce conventional commit format
+      # WHY: Automated changelogs, clear history
+      # Format: type(scope): description
+      # Example: feat(auth): add Google OAuth support
+      - id: commitizen
+        stages: [commit-msg]
+
+# =============================================================================
+# CI-ONLY CONFIGURATION
+# =============================================================================
+# These settings are used in CI but not enforced locally (too slow)
+ci:
+  autofix_prs: true
+  autofix_commit_msg: "style: auto-fix by pre-commit hooks"
+  autoupdate_schedule: weekly

@@ -29,6 +29,11 @@
 16. [User Flows](#16-user-flows)
 17. [Error Handling Strategy](#17-error-handling-strategy)
 18. [Performance Considerations](#18-performance-considerations)
+19. [CI/CD Pipeline & Branch Protection](#19-cicd-pipeline--branch-protection)
+    - [19.1 GitHub Actions Workflow](#191-github-actions-workflow)
+    - [19.2 Pre-commit Hooks](#192-pre-commit-hooks)
+    - [19.3 Branch Protection Rules](#193-branch-protection-rules)
+    - [19.4 Testing Strategy](#194-testing-strategy)
 
 ---
 
@@ -2257,6 +2262,265 @@ npm run build  # Production build
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** January 2025  
+---
+
+# 19. CI/CD Pipeline & Branch Protection
+
+This section covers the Continuous Integration/Continuous Deployment setup that ensures code quality and prevents broken code from reaching production.
+
+## 19.1 GitHub Actions Workflow
+
+The CI pipeline (`.github/workflows/ci.yml`) runs automatically on:
+- Every push to `main` branch
+- Every pull request targeting `main`
+- Manual trigger via GitHub Actions UI
+
+### Pipeline Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GitHub Actions CI Pipeline                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌────────────────┐      ┌────────────────┐                     │
+│  │  backend-lint  │      │ frontend-lint  │  ← Run in parallel  │
+│  │   (ruff)       │      │   (eslint)     │                     │
+│  └───────┬────────┘      └───────┬────────┘                     │
+│          │                       │                               │
+│          ▼                       ▼                               │
+│  ┌────────────────┐      ┌────────────────┐                     │
+│  │  backend-test  │      │ frontend-build │  ← Run after lint   │
+│  │   (pytest)     │      │    (vite)      │                     │
+│  └───────┬────────┘      └───────┬────────┘                     │
+│          │                       │                               │
+│          └───────────┬───────────┘                               │
+│                      ▼                                           │
+│             ┌────────────────┐                                   │
+│             │ All Checks ✅  │  ← Final gate for branch protect  │
+│             └────────────────┘                                   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Jobs Breakdown
+
+| Job | Tools | Purpose | Failure Impact |
+|-----|-------|---------|----------------|
+| `backend-lint` | ruff | Python style & bug detection | Blocks merge |
+| `backend-test` | pytest | API endpoint tests | Blocks merge |
+| `frontend-lint` | eslint | JS/React issues | Blocks merge |
+| `frontend-build` | vite | Compilation check | Blocks merge |
+| `security-scan` | pip-audit, npm audit | Vulnerability check | Warning only |
+| `all-checks-passed` | bash | Summary gate | Required for merge |
+
+### Key Configuration Choices
+
+**Why ruff over flake8/pylint?**
+- 10-100x faster (written in Rust)
+- Single tool for linting AND formatting
+- Modern Python support (3.11+ features)
+
+**Why pytest with coverage?**
+- Standard Python testing framework
+- Coverage reports identify untested code
+- `--cov-fail-under=50` enforces minimum coverage
+
+**Why concurrency group?**
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+Saves CI minutes by canceling redundant runs when new commits are pushed.
+
+## 19.2 Pre-commit Hooks
+
+Pre-commit hooks run **locally** before code reaches GitHub, providing faster feedback.
+
+### Installation
+
+```bash
+# Install pre-commit tool
+pip install pre-commit
+
+# Install hooks from config
+cd rag-enterprise
+pre-commit install
+pre-commit install --hook-type commit-msg
+```
+
+### Hook Configuration (`.pre-commit-config.yaml`)
+
+| Hook | Purpose |
+|------|---------|
+| `no-commit-to-branch` | Prevents direct commits to main |
+| `check-added-large-files` | Warns about files > 500KB |
+| `detect-private-key` | Catches accidental secret commits |
+| `ruff` | Lints Python (auto-fixes issues) |
+| `ruff-format` | Formats Python code |
+| `eslint` | Lints JavaScript/React |
+| `commitizen` | Enforces conventional commit messages |
+
+### Commit Message Format
+
+We use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <description>
+
+Examples:
+feat(auth): add Google OAuth login
+fix(payment): correct GST calculation
+docs(readme): add deployment guide
+test(api): add registration tests
+```
+
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+
+## 19.3 Branch Protection Rules
+
+### Recommended GitHub Settings
+
+Navigate to: **Settings → Branches → Add rule**
+
+**Branch name pattern:** `main`
+
+```
+[✅] Require a pull request before merging
+    [✅] Require approvals: 1
+    [✅] Dismiss stale approvals when new commits are pushed
+    
+[✅] Require status checks to pass before merging
+    [✅] Require branches to be up to date before merging
+    Required checks:
+    - All Checks Passed ✅
+    
+[✅] Require conversation resolution before merging
+
+[✅] Do not allow bypassing the above settings
+
+[ ] Allow force pushes
+[ ] Allow deletions
+```
+
+### Developer Workflow
+
+```bash
+# 1. Create feature branch
+git checkout main && git pull
+git checkout -b feature/my-feature
+
+# 2. Make changes & commit
+git add .
+git commit -m "feat(scope): description"  # Pre-commit hooks run
+
+# 3. Push & create PR
+git push origin feature/my-feature
+# → CI pipeline runs automatically
+# → Request code review
+# → Merge when checks pass
+```
+
+## 19.4 Testing Strategy
+
+### Backend Tests (`backend/tests/`)
+
+**Location:** `backend/tests/`
+**Framework:** pytest + httpx (for async testing)
+**Database:** SQLite in-memory (isolated, fast)
+
+**Test Categories:**
+
+| File | Coverage |
+|------|----------|
+| `test_auth.py` | Registration, login, email verification, password validation |
+| `test_api.py` | Documents, query, usage, billing, profile endpoints |
+| `conftest.py` | Fixtures: test client, database, authenticated user |
+
+**Running Tests Locally:**
+
+```bash
+cd backend
+
+# Install test dependencies
+pip install pytest pytest-asyncio httpx pytest-cov
+
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=. --cov-report=term-missing
+
+# Run specific test file
+pytest tests/test_auth.py -v
+```
+
+**Test Database Isolation:**
+
+```python
+# conftest.py - Each test gets fresh database
+@pytest.fixture(scope="function")
+def client(db):
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+```
+
+### Frontend Tests (Future)
+
+Currently, frontend uses ESLint for static analysis. Future additions:
+- **Vitest** for unit tests
+- **Playwright** for E2E tests
+
+### Test Environment Variables
+
+CI uses mock values for external services:
+
+```yaml
+env:
+  DATABASE_URL: sqlite:///./test.db
+  JWT_SECRET: test-secret-key-for-ci
+  EMAIL_MODE: console  # Don't send real emails
+  GROQ_API_KEY: test-key
+  PINECONE_API_KEY: test-key
+```
+
+---
+
+# Appendix C: CI/CD Quick Reference
+
+## File Locations
+
+| File | Purpose |
+|------|---------|
+| `.github/workflows/ci.yml` | CI pipeline definition |
+| `.pre-commit-config.yaml` | Pre-commit hooks config |
+| `backend/pyproject.toml` | Python linter (ruff) config |
+| `backend/tests/conftest.py` | Test fixtures |
+| `backend/tests/test_*.py` | Test files |
+| `BRANCH_PROTECTION_GUIDE.md` | Full setup guide |
+
+## Commands
+
+```bash
+# Pre-commit
+pre-commit install              # Install hooks
+pre-commit run --all-files      # Run all hooks manually
+
+# Testing
+pytest tests/ -v               # Run tests
+pytest --cov=. --cov-report=html  # Coverage report
+
+# Linting
+ruff check .                   # Python lint
+ruff format .                  # Python format
+npm run lint                   # Frontend lint
+```
+
+---
+
+**Document Version:** 2.0  
+**Last Updated:** April 2026  
 **Maintainer:** DocMind Development Team

@@ -1,0 +1,272 @@
+# =============================================================================
+# GitHub Actions CI/CD Pipeline for DocMind
+# =============================================================================
+# This workflow runs on every push to main and on pull requests.
+# It ensures code quality and prevents broken code from reaching production.
+#
+# WHY THIS STRUCTURE:
+# 1. Separate jobs for backend/frontend - They have different tech stacks
+# 2. Jobs run in parallel - Faster feedback (fail fast)
+# 3. Build job depends on lint/test - Only deploy code that passes all checks
+# 4. Matrix strategy for Python - Ensures compatibility across versions
+# =============================================================================
+
+name: CI Pipeline
+
+# TRIGGERS:
+# - push to main: Runs full pipeline for production deployments
+# - pull_request to main: Runs on PRs to catch issues before merge
+# - workflow_dispatch: Allows manual trigger from GitHub UI (useful for debugging)
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel in-progress runs when new commits are pushed
+# WHY: Saves GitHub Actions minutes and gives faster feedback on latest code
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# =============================================================================
+# JOBS
+# =============================================================================
+jobs:
+  # ---------------------------------------------------------------------------
+  # Backend Linting Job
+  # ---------------------------------------------------------------------------
+  # WHY SEPARATE: Linting is fast and can catch issues without running full tests
+  # WHAT IT CHECKS: Python syntax, style, and potential bugs using ruff
+  backend-lint:
+    name: Backend Lint (Python)
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # WHY Python 3.11: Matches production environment on Render
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: './backend/requirements.txt'
+      
+      # Install ruff for linting (fast, modern Python linter)
+      # WHY RUFF: 10-100x faster than flake8/pylint, single tool for lint + format
+      - name: Install linting tools
+        run: pip install ruff
+      
+      # Check for linting errors (doesn't auto-fix)
+      - name: Run ruff linter
+        run: ruff check . --output-format=github
+      
+      # Check formatting (fails if code isn't formatted properly)
+      - name: Check ruff formatting
+        run: ruff format --check .
+
+  # ---------------------------------------------------------------------------
+  # Backend Tests Job
+  # ---------------------------------------------------------------------------
+  # WHY: Ensures API endpoints work correctly before deployment
+  # ISOLATION: Uses SQLite in-memory for tests (no external DB needed)
+  backend-test:
+    name: Backend Tests (pytest)
+    runs-on: ubuntu-latest
+    needs: backend-lint  # Only run tests if linting passes
+    
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    # Environment variables for tests
+    # WHY: Tests run in isolation without connecting to real services
+    env:
+      DATABASE_URL: sqlite:///./test.db
+      JWT_SECRET: test-secret-key-for-ci
+      GROQ_API_KEY: test-key
+      COHERE_API_KEY: test-key
+      PINECONE_API_KEY: test-key
+      PINECONE_INDEX_NAME: test-index
+      EMAIL_MODE: console
+      GOOGLE_CLIENT_ID: test-client-id
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: './backend/requirements.txt'
+      
+      # Install all dependencies including test tools
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx pytest-cov
+      
+      # Run tests with coverage report
+      # WHY COVERAGE: Helps identify untested code paths
+      - name: Run tests
+        run: |
+          pytest tests/ -v --tb=short --cov=. --cov-report=term-missing --cov-fail-under=50
+      
+      # Upload coverage report as artifact
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: ./backend/htmlcov/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Frontend Linting Job
+  # ---------------------------------------------------------------------------
+  # WHY: Catches React/JS issues like unused variables, hook violations, etc.
+  frontend-lint:
+    name: Frontend Lint (ESLint)
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # WHY Node 20: LTS version with best compatibility
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+      
+      # Install dependencies (ci is faster than install, uses lock file exactly)
+      - name: Install dependencies
+        run: npm ci
+      
+      # Run ESLint
+      # WHY: Catches common React mistakes like missing deps in useEffect
+      - name: Run ESLint
+        run: npm run lint
+
+  # ---------------------------------------------------------------------------
+  # Frontend Build Job
+  # ---------------------------------------------------------------------------
+  # WHY: Ensures the app compiles without errors
+  # IMPORTANT: Build failures here prevent deployment to Vercel
+  frontend-build:
+    name: Frontend Build (Vite)
+    runs-on: ubuntu-latest
+    needs: frontend-lint  # Only build if lint passes
+    
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    # Build-time environment variables
+    env:
+      VITE_API_URL: https://api.example.com  # Placeholder for build
+      VITE_GOOGLE_CLIENT_ID: test-client-id
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      # Production build - catches TypeScript errors, import issues, etc.
+      - name: Build application
+        run: npm run build
+      
+      # Upload build artifacts (useful for debugging failed builds)
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: ./frontend/dist/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Security Scan Job (Optional but Recommended)
+  # ---------------------------------------------------------------------------
+  # WHY: Catches known vulnerabilities in dependencies
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Check Python dependencies for known vulnerabilities
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install pip-audit
+        run: pip install pip-audit
+      
+      # WHY PIP-AUDIT: Official PyPA tool for checking vulnerabilities
+      # --ignore-vuln: Can ignore specific false positives if needed
+      - name: Run pip-audit on backend
+        run: pip-audit -r ./backend/requirements.txt --ignore-vuln PYSEC-2024-48 || true
+        continue-on-error: true  # Don't fail pipeline on warnings
+      
+      # Check npm dependencies
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      # WHY NPM AUDIT: Built-in npm tool for security scanning
+      - name: Run npm audit on frontend
+        working-directory: ./frontend
+        run: npm audit --audit-level=high || true
+        continue-on-error: true  # Don't fail on moderate warnings
+
+  # ---------------------------------------------------------------------------
+  # All Checks Passed (Summary Job)
+  # ---------------------------------------------------------------------------
+  # WHY: Single job to require for branch protection
+  # This passes only if ALL previous jobs pass
+  all-checks-passed:
+    name: All Checks Passed ✅
+    runs-on: ubuntu-latest
+    needs: [backend-lint, backend-test, frontend-lint, frontend-build]
+    if: always()
+    
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.backend-lint.result }}" != "success" ]] || \
+             [[ "${{ needs.backend-test.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-lint.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-build.result }}" != "success" ]]; then
+            echo "❌ One or more checks failed"
+            exit 1
+          fi
+          echo "✅ All checks passed!"

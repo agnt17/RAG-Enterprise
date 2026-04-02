@@ -1,0 +1,64 @@
+# =============================================================================
+# Ruff Configuration for DocMind Backend
+# =============================================================================
+# Ruff is a fast Python linter and formatter.
+# This config defines coding standards for the project.
+#
+# WHY RUFF:
+# - 10-100x faster than flake8/pylint
+# - Single tool for both linting and formatting
+# - Modern Python support (3.11+)
+# =============================================================================
+
+[tool.ruff]
+# Target Python version
+target-version = "py311"
+
+# Line length (same as Black default)
+line-length = 120
+
+# Exclude directories
+exclude = [
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".git",
+    "migrations",
+    "uploads",
+]
+
+[tool.ruff.lint]
+# Enable specific rule sets
+select = [
+    "E",      # pycodestyle errors (PEP 8)
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes (logic errors)
+    "I",      # isort (import sorting)
+    "B",      # flake8-bugbear (common bugs)
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade (modern Python)
+    "SIM",    # flake8-simplify
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",   # Line too long (we use line-length instead)
+    "B008",   # Do not perform function calls in argument defaults (FastAPI uses this)
+    "B904",   # Allow raise without from in except blocks
+    "SIM108", # Allow if-else instead of ternary
+]
+
+# Allow autofix for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+# Keep imports sorted and grouped
+known-first-party = ["database", "auth", "rag", "ingest", "payment", "email_service"]
+
+[tool.ruff.format]
+# Format settings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
