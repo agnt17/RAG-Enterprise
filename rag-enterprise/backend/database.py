@@ -145,6 +145,20 @@ class Payment(Base):
     created_at          = Column(DateTime, default=datetime.utcnow)
     completed_at        = Column(DateTime, nullable=True)
 
+# ── DOCUMENT CHUNK TABLE ──────────────────────────────────
+# Stores raw text chunks for BM25 keyword search (hybrid retrieval)
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    document_id  = Column(String, nullable=False, index=True)
+    user_id      = Column(String, nullable=False, index=True)
+    content      = Column(String, nullable=False)
+    chunk_index  = Column(Integer, nullable=True)
+    page_num     = Column(Integer, nullable=True)
+    source       = Column(String, nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
 def _ensure_user_columns():
     inspector = inspect(engine)
     if "users" not in inspector.get_table_names():

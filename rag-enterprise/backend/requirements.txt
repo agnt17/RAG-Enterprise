@@ -24,3 +24,4 @@ email-validator
 slowapi
 supabase
 razorpay
+rank_bm25

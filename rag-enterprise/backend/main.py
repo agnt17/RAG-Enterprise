@@ -646,8 +646,15 @@ async def upload_pdf(
         db.commit()
         db.refresh(doc)
 
-        # Ingest into this document's own Pinecone namespace
-        result = ingest_pdf(temp_file_path, namespace=doc_id)
+        # Ingest into this document's own Pinecone namespace.
+        # Pass db so chunks are also persisted to PostgreSQL for BM25 hybrid search.
+        result = ingest_pdf(
+            temp_file_path,
+            namespace=doc_id,
+            db=db,
+            user_id=current_user.id,
+            document_id=doc_id,
+        )
         
         # Log usage for plan tracking
         log_usage(db, current_user.id, "upload", {"document_id": doc_id, "filename": file.filename})
@@ -1406,6 +1413,119 @@ async def get_billing_history(
             "cancelled": current_user.cancelled_at is not None
         }
     }
+
+# ── Analytics ─────────────────────────────────────────────
+@app.get("/analytics")
+async def get_analytics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Usage analytics for the current user.
+
+    Returns:
+    - Total queries and uploads this month
+    - Daily query counts for the last 30 days (for trend chart)
+    - Total document and conversation counts
+    - Top documents by query volume
+    """
+    from sqlalchemy import func
+    from database import UsageLog, Document, Conversation
+
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    thirty_days_ago = now - timedelta(days=30)
+
+    # ── Monthly totals ───────────────────────────────────────
+    monthly_queries = db.query(UsageLog).filter(
+        UsageLog.user_id == current_user.id,
+        UsageLog.action == "question",
+        UsageLog.created_at >= month_start,
+    ).count()
+
+    monthly_uploads = db.query(UsageLog).filter(
+        UsageLog.user_id == current_user.id,
+        UsageLog.action == "upload",
+        UsageLog.created_at >= month_start,
+    ).count()
+
+    # ── All-time totals ──────────────────────────────────────
+    total_queries = db.query(UsageLog).filter(
+        UsageLog.user_id == current_user.id,
+        UsageLog.action == "question",
+    ).count()
+
+    total_documents = db.query(Document).filter(
+        Document.user_id == current_user.id,
+    ).count()
+
+    # ── Daily query trend (last 30 days) ─────────────────────
+    # Produces a list of {date, count} objects for charting
+    daily_rows = (
+        db.query(
+            func.date(UsageLog.created_at).label("day"),
+            func.count(UsageLog.id).label("count"),
+        )
+        .filter(
+            UsageLog.user_id == current_user.id,
+            UsageLog.action == "question",
+            UsageLog.created_at >= thirty_days_ago,
+        )
+        .group_by(func.date(UsageLog.created_at))
+        .order_by(func.date(UsageLog.created_at))
+        .all()
+    )
+    daily_trend = [{"date": str(row.day), "queries": row.count} for row in daily_rows]
+
+    # ── Top documents by query count ─────────────────────────
+    # Joins UsageLog with Document to surface most-queried files
+    doc_rows = (
+        db.query(
+            UsageLog.extra_data,
+            func.count(UsageLog.id).label("count"),
+        )
+        .filter(
+            UsageLog.user_id == current_user.id,
+            UsageLog.action == "question",
+        )
+        .group_by(UsageLog.extra_data)
+        .order_by(func.count(UsageLog.id).desc())
+        .limit(5)
+        .all()
+    )
+
+    top_documents = []
+    seen_doc_ids = set()
+    for row in doc_rows:
+        try:
+            data = json.loads(row.extra_data or "{}")
+            doc_id = data.get("document_id")
+            if not doc_id or doc_id in seen_doc_ids:
+                continue
+            seen_doc_ids.add(doc_id)
+            doc = db.query(Document).filter(Document.id == doc_id).first()
+            top_documents.append({
+                "document_id": doc_id,
+                "filename": doc.filename if doc else "Unknown",
+                "query_count": row.count,
+            })
+        except (json.JSONDecodeError, AttributeError):
+            continue
+
+    return {
+        "monthly": {
+            "queries": monthly_queries,
+            "uploads": monthly_uploads,
+            "month": month_start.strftime("%B %Y"),
+        },
+        "all_time": {
+            "queries": total_queries,
+            "documents": total_documents,
+        },
+        "daily_trend": daily_trend,
+        "top_documents": top_documents,
+    }
+
 
 # ── Health ─────────────────────────────────────────────────
 @app.get("/health")
