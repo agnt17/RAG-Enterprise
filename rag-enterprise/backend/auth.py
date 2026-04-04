@@ -11,6 +11,7 @@ import os, uuid
 import re
 import hashlib
 import secrets
+from passlib.exc import UnknownHashError
 
 # ── PASSWORD HASHING ───────────────────────────────────────
 # Argon2 is a modern password hashing algorithm.
@@ -20,8 +21,13 @@ pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+def verify_password(plain, hashed):
+    if not hashed:
+        return False
+    try:
+        return pwd_context.verify(plain, hashed)
+    except (UnknownHashError, ValueError, TypeError):
+        return False
 
 def validate_password_strength(password: str) -> None:
     if len(password) < 8:
