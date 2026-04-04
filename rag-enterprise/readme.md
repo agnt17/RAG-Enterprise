@@ -215,16 +215,34 @@ curl -X POST http://localhost:8000/query \
 
 ## 🗺️ Roadmap
 
+### ✅ Phase 1–4 — Complete
+
 - [x] PDF upload and ingestion
 - [x] Semantic search with Pinecone
-- [x] Conversational memory
-- [x] Clean document slate on new upload
-- [ ] Source citations (page numbers)
-- [ ] Multi-document support
-- [ ] User authentication
-- [ ] PostgreSQL for persistent chat history
-- [ ] RAGAS evaluation metrics
-- [ ] Deployment on Render + Vercel
+- [x] Conversational memory (PostgreSQL)
+- [x] Source citations (page numbers)
+- [x] Multi-document support with isolated namespaces
+- [x] User authentication (JWT + Google OAuth + email verification)
+- [x] Subscription tiers with Razorpay payments (Free / Basic / Pro / Enterprise)
+- [x] Usage enforcement and coupon system
+- [x] Profile management (avatar, profession, password change)
+- [x] CI/CD pipeline (GitHub Actions) with automated tests
+- [x] Deployment on Render + Vercel
+
+### 🚧 Phase 5 — In Progress (Month 5–6)
+
+- [x] Hybrid search (BM25 keyword + Pinecone semantic via EnsembleRetriever)
+- [x] Cohere re-ranking for higher-quality context selection
+- [x] Usage analytics endpoint (`GET /analytics`)
+- [ ] RAGAS evaluation metrics (answer quality scoring)
+- [ ] Razorpay payment webhooks
+
+### 🔮 Future
+
+- [ ] Multi-format support (Word, Excel, web pages)
+- [ ] Team collaboration and shared document workspaces
+- [ ] Slack / Teams integration
+- [ ] Public API for third-party integrations
 
 ---
 

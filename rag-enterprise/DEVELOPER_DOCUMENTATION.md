@@ -2521,6 +2521,129 @@ npm run lint                   # Frontend lint
 
 ---
 
-**Document Version:** 2.0  
-**Last Updated:** April 2026  
+## 20. Phase 5 — Hybrid Search & Reranking
+
+### 20.1 Overview
+
+Phase 5 upgrades the RAG retrieval pipeline from pure semantic search to a **hybrid retrieval + reranking** architecture. This improves answer quality in two key ways:
+
+1. **Hybrid Search** — Combines BM25 (keyword match) with Pinecone dense vectors (semantic match). Keyword matching is essential when users query exact entity names, clause numbers, or section headings that semantic search may rank poorly.
+2. **Cohere Reranking** — After merging BM25 and dense candidates, Cohere's `rerank-english-v3.0` model reorders them by true relevance to the query. Only the top-4 reranked chunks are passed to the LLM.
+
+### 20.2 Architecture Change
+
+**Before (Phase 1–4):**
+
+```text
+Question → Cohere Embedding → Pinecone Top-4 → LLaMA → Answer
+```
+
+**After (Phase 5):**
+
+```text
+Question → Cohere Embedding → Pinecone Top-10 (dense)
+                            + PostgreSQL BM25 Top-10 (keyword)
+                            → EnsembleRetriever (merge, deduplicate)
+                            → Cohere Reranker (top-4 selected)
+                            → LLaMA → Answer
+```
+
+### 20.3 New Database Table: `document_chunks`
+
+Chunks must be stored in PostgreSQL for BM25 retrieval (BM25 operates on raw text, not vectors).
+
+```sql
+CREATE TABLE document_chunks (
+    id           SERIAL PRIMARY KEY,
+    document_id  VARCHAR NOT NULL,
+    user_id      VARCHAR NOT NULL,
+    content      TEXT    NOT NULL,
+    chunk_index  INTEGER,
+    page_num     INTEGER,
+    source       VARCHAR,
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX ON document_chunks (document_id);
+CREATE INDEX ON document_chunks (user_id);
+```
+
+The table is created automatically by `create_tables()` on server start. Existing documents ingested before Phase 5 will **not** have rows here — the pipeline gracefully falls back to dense-only retrieval for those documents. Users can re-upload to gain hybrid search.
+
+### 20.4 Ingestion Changes (`ingest.py`)
+
+`ingest_pdf()` now accepts three optional parameters:
+
+| Parameter     | Type      | Purpose                                  |
+|---------------|-----------|------------------------------------------|
+| `db`          | `Session` | SQLAlchemy session for chunk persistence |
+| `user_id`     | `str`     | Owner of the document                    |
+| `document_id` | `str`     | Links chunks to the right document       |
+
+When all three are provided, chunks are bulk-inserted into `document_chunks` after Pinecone ingestion. Old chunks are deleted first to handle re-uploads cleanly.
+
+The `/upload` endpoint in `main.py` passes these parameters automatically.
+
+### 20.5 Retrieval Weights
+
+```python
+EnsembleRetriever(
+    retrievers=[bm25_retriever, dense_retriever],
+    weights=[0.4, 0.6],   # BM25 40% : dense 60%
+)
+```
+
+Dense is weighted higher because **meaning matters more than exact words** for document Q&A. However, BM25's 40% weight ensures that entity names, clause numbers, and section references are not missed.
+
+### 20.6 Reranking Configuration
+
+```python
+RETRIEVAL_K  = 10   # candidates fetched from each retriever
+RERANK_TOP_N = 4    # final chunks sent to the LLM after reranking
+```
+
+The Cohere reranker uses model `rerank-english-v3.0`. If the API call fails, the pipeline falls back to the top-4 merged candidates — answers are never blocked by a reranking failure.
+
+### 20.7 New Dependency
+
+```text
+rank_bm25   # BM25Retriever from langchain_community requires this
+```
+
+Install: `pip install rank_bm25`
+
+### 20.8 Analytics Endpoint (`GET /analytics`)
+
+New endpoint added to surface usage data for dashboard display.
+
+**Authentication:** Bearer JWT required.
+
+**Response:**
+
+```json
+{
+  "monthly": {
+    "queries": 47,
+    "uploads": 3,
+    "month": "April 2026"
+  },
+  "all_time": {
+    "queries": 312,
+    "documents": 18
+  },
+  "daily_trend": [
+    {"date": "2026-03-05", "queries": 12},
+    {"date": "2026-03-06", "queries": 8}
+  ],
+  "top_documents": [
+    {"document_id": "abc-123", "filename": "contract.pdf", "query_count": 45}
+  ]
+}
+```
+
+`daily_trend` contains one entry per day (last 30 days) with non-zero query counts — suitable for rendering a bar/line chart on a frontend analytics dashboard.
+
+---
+
+**Document Version:** 2.1
+**Last Updated:** April 2026
 **Maintainer:** DocMind Development Team
