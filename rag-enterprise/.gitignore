@@ -6,3 +6,5 @@ node_modules/
 frontend/dist/
 frontend/.env
 RAZORPAY_SETUP.md
+backend/.venv/
+backend/.python-version
