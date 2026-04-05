@@ -1,9 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, ensure_user_columns, User, Document, Conversation, ProfileImageSource, Coupon, CouponUsage, Payment
+from database import get_db, create_tables, ensure_user_columns, User, Document, Conversation, ProfileImageSource, Coupon, CouponUsage, Payment, SessionLocal
 from auth import (hash_password, verify_password, create_token,
                   validate_password_strength,
                   get_current_user, verify_google_token,
@@ -550,11 +550,37 @@ def admin_cleanup_data(request: Request, req: AdminCleanupRequest, db: Session =
 
     return result
 
+# ── Background ingestion task ──────────────────────────────
+def _run_ingest(temp_file_path: str, document_id: str, user_id: str, filename: str) -> None:
+    db = SessionLocal()
+    try:
+        from ingest import ingest_pdf
+        from plan_limits import log_usage
+        ingest_pdf(temp_file_path, namespace=document_id, db=db, user_id=user_id, document_id=document_id)
+        log_usage(db, user_id, "upload", {"document_id": document_id, "filename": filename})
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        if doc:
+            doc.status = "ready"
+        db.commit()
+    except Exception:
+        try:
+            doc = db.query(Document).filter(Document.id == document_id).first()
+            if doc:
+                doc.status = "failed"
+            db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
 # ── Upload ─────────────────────────────────────────────────
 @app.post("/upload")
 @limiter.limit("10/day")
 async def upload_pdf(
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -562,15 +588,14 @@ async def upload_pdf(
     # Check if Supabase is configured
     if not is_supabase_configured():
         raise HTTPException(500, "Storage service not configured. Please contact support.")
-    
+
     # ═══ PLAN ENFORCEMENT ═══════════════════════════════════
-    from plan_limits import check_document_limit, check_file_size_limit, log_usage
-    
-    # Check document count limit
+    from plan_limits import check_document_limit, check_file_size_limit
+
     doc_limit = check_document_limit(db, current_user.id, current_user.plan)
     if not doc_limit["can_upload"]:
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail={
                 "error": "Document limit reached",
                 "message": f"Your {current_user.plan.title()} plan allows {doc_limit['max_allowed']} documents. You have {doc_limit['current_count']}.",
@@ -578,15 +603,14 @@ async def upload_pdf(
                 "current_plan": current_user.plan
             }
         )
-    
+
     # Validation 1 — file type
     if file.content_type != "application/pdf":
         raise HTTPException(400, "Only PDF files are allowed. Please upload a .pdf file.")
 
     # Validation 2 — file size (plan-based limit)
     contents = await file.read()
-    
-    # Check file size against plan limits
+
     size_limit = check_file_size_limit(current_user.plan, len(contents))
     if not size_limit["allowed"]:
         raise HTTPException(
@@ -598,8 +622,7 @@ async def upload_pdf(
                 "current_plan": current_user.plan
             }
         )
-    
-    # Also apply absolute 25MB limit for all plans
+
     if len(contents) > 25 * 1024 * 1024:
         raise HTTPException(400, "File too large. Maximum allowed size is 25MB.")
 
@@ -617,58 +640,39 @@ async def upload_pdf(
     except Exception as e:
         raise HTTPException(500, f"Failed to upload document: {str(e)}")
 
-    # Save to temp file for ingestion (ingest_pdf needs a file path)
-    temp_file_path = None
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-            temp_file.write(contents)
-            temp_file_path = temp_file.name
+    # Write to temp file — path is passed to the background task, which cleans it up
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(contents)
+        temp_file_path = tmp.name
 
-        # Deactivate all previous documents for this user
-        all_docs = db.query(Document).filter(
-            Document.user_id == current_user.id
-        ).all()
-        for old_doc in all_docs:
-            old_doc.is_active = False
-        db.commit()
+    # Deactivate all previous documents for this user
+    db.query(Document).filter(Document.user_id == current_user.id).update({"is_active": False})
+    db.commit()
 
-        # Create new document record
-        doc = Document(
-            id             = doc_id,
-            user_id        = current_user.id,
-            filename       = file.filename,          # original name for display
-            file_path      = stored_filename,        # stored name (with doc_id prefix)
-            file_size      = str(len(contents)),
-            chunk_count    = 0,
-            is_active      = True
-        )
-        db.add(doc)
-        db.commit()
-        db.refresh(doc)
+    # Create document record with status=pending — background task will flip it to ready/failed
+    doc = Document(
+        id          = doc_id,
+        user_id     = current_user.id,
+        filename    = file.filename,
+        file_path   = stored_filename,
+        file_size   = str(len(contents)),
+        chunk_count = 0,
+        is_active   = True,
+        status      = "pending"
+    )
+    db.add(doc)
+    db.commit()
 
-        # Ingest into this document's own Pinecone namespace.
-        # Pass db so chunks are also persisted to PostgreSQL for BM25 hybrid search.
-        result = ingest_pdf(
-            temp_file_path,
-            namespace=doc_id,
-            db=db,
-            user_id=current_user.id,
-            document_id=doc_id,
-        )
-        
-        # Log usage for plan tracking
-        log_usage(db, current_user.id, "upload", {"document_id": doc_id, "filename": file.filename})
+    # Kick off ingestion — runs after this response is sent
+    background_tasks.add_task(_run_ingest, temp_file_path, doc_id, current_user.id, file.filename)
 
-        return {
-            "message":     result,
-            "filename":    file.filename,
-            "document_id": doc_id,
-            "file_path":   stored_filename
-        }
-    finally:
-        # Clean up temp file
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+    return {
+        "message":     "Upload received, indexing in background",
+        "filename":    file.filename,
+        "document_id": doc_id,
+        "file_path":   stored_filename,
+        "status":      "pending"
+    }
 
 # ── Serve Document Files ───────────────────────────────────
 @app.get("/files/{document_id}")
@@ -830,11 +834,27 @@ async def get_documents(
                 "file_path":   d.file_path,
                 "uploaded_at": d.uploaded_at.isoformat(),
                 "file_size":   d.file_size,
-                "is_active":   d.is_active
+                "is_active":   d.is_active,
+                "status":      d.status or "ready"
             }
             for d in docs
         ]
     }
+
+# ── Document status (for background indexing polling) ──────
+@app.get("/documents/{document_id}/status")
+async def get_document_status(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    return {"document_id": document_id, "status": doc.status or "ready"}
 
 # ── Switch active document ─────────────────────────────────
 @app.post("/documents/{document_id}/activate")
