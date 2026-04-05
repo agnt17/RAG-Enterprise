@@ -36,7 +36,7 @@ Built by Aditya Gupta (sole developer). Deployed on Render (backend) + Vercel (f
 
 ## Database Tables
 1. `users` — auth, billing, profession, email verification
-2. `documents` — uploaded PDFs (UUID = Pinecone namespace)
+2. `documents` — uploaded PDFs (UUID = Pinecone namespace); `status` column: `"pending"` | `"ready"` | `"failed"`
 3. `conversations` — per-document chat history (JSON messages)
 4. `usage_logs` — question/upload tracking for plan limits
 5. `coupons` — promo codes (percentage or flat INR discounts)
@@ -64,14 +64,19 @@ Every query goes through:
 
 Constants: `RETRIEVAL_K = 10`, `RERANK_TOP_N = 4`
 
+## Upload Pipeline (Background Indexing)
+
+`POST /upload` returns immediately (~2-3s) after uploading to Supabase and creating the DB record with `status="pending"`. Ingestion runs in a FastAPI `BackgroundTask` (`_run_ingest` in `main.py`) using its own `SessionLocal`. When done it flips `status` to `"ready"` or `"failed"`. Frontend polls `GET /documents/{id}/status` every 2 seconds until resolved.
+
 ## Coding Conventions
 - Python type hints on all new function signatures
-- SQLAlchemy migrations are done inline in `_ensure_user_columns()` — not Alembic
+- SQLAlchemy migrations are done inline — `_ensure_user_columns()` for `users`, `_ensure_document_columns()` for `documents`. Never use Alembic.
 - UUIDs are used as primary keys for `users`, `documents`, `conversations`, `payments`
 - All amounts in INR (float). GST is computed and stored separately.
 - Conversations store messages as a JSON string in a single `String` column
 - `document.id` doubles as the Pinecone namespace — never change a document's ID after creation
 - Do not use `--no-verify` to bypass git hooks
+- Keep-alive cron job on cron-job.org pings `/health` every 10 min to prevent Render free tier cold starts
 
 ## Environment Variables Required
 `DATABASE_URL`, `PINECONE_API_KEY`, `COHERE_API_KEY`, `GROQ_API_KEY`,
