@@ -71,6 +71,7 @@ class Document(Base):
     chunk_count = Column(Integer, default=0)
     is_active   = Column(Boolean, default=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
+    status      = Column(String, default="ready")   # "pending" | "ready" | "failed"
 
 # ── CONVERSATION TABLE ─────────────────────────────────────
 # Each document gets its own conversation
@@ -203,9 +204,20 @@ def _ensure_user_columns():
         )
 
 
+def _ensure_document_columns():
+    inspector = inspect(engine)
+    if "documents" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("documents")}
+    with engine.begin() as connection:
+        if "status" not in existing:
+            connection.execute(text("ALTER TABLE documents ADD COLUMN status VARCHAR DEFAULT 'ready'"))
+            connection.execute(text("UPDATE documents SET status = 'ready' WHERE status IS NULL"))
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
     _ensure_user_columns()
+    _ensure_document_columns()
 
 def ensure_user_columns():
     """Add new columns to existing users table if they don't exist"""

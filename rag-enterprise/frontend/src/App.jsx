@@ -248,6 +248,7 @@ export default function App() {
   const [appLoading, setAppLoading] = useState(true)
   const [documents, setDocuments] = useState([])
   const [switching, setSwitching] = useState(false)
+  const [processingDocId, setProcessingDocId] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024)
   const [openMenuId, setOpenMenuId] = useState(null)
   const [sourceModal, setSourceModal] = useState(null) // {page, content, source} or null
@@ -327,6 +328,31 @@ export default function App() {
     else delete axios.defaults.headers.common["Authorization"]
   }, [token])
 
+  // Poll for document indexing status while a background ingest is running
+  useEffect(() => {
+    if (!processingDocId || !token) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await axios.get(`${API}/documents/${processingDocId}/status`)
+        const { status } = res.data
+        if (status === "ready") {
+          clearInterval(interval)
+          setDocuments(prev => prev.map(d => d.id === processingDocId ? { ...d, status: "ready" } : d))
+          setUploadedFile(prev => prev?.id === processingDocId ? { ...prev, status: "ready" } : prev)
+          setProcessingDocId(null)
+          toast.success("Document indexed and ready! Ask me anything.")
+        } else if (status === "failed") {
+          clearInterval(interval)
+          setDocuments(prev => prev.filter(d => d.id !== processingDocId))
+          setUploadedFile(prev => prev?.id === processingDocId ? null : prev)
+          setProcessingDocId(null)
+          toast.error("Indexing failed. Please try uploading again.")
+        }
+      } catch { /* keep polling on transient network errors */ }
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [processingDocId, token])
+
   const handleLogin = (tok, userData) => {
     localStorage.setItem("token", tok)
     setToken(tok)
@@ -348,21 +374,25 @@ export default function App() {
     try {
       const res = await axios.post(`${API}/upload`, form)
       const filename = res.data.filename || file.name
-      setUploadedFile({
-        id: res.data.document_id,
+      const docId = res.data.document_id
+      const newDoc = {
+        id: docId,
         filename,
         file_path: res.data.file_path,
         uploaded_at: new Date().toISOString(),
-        file_size: String(file.size)
-      })
+        file_size: String(file.size),
+        is_active: true,
+        status: "pending"
+      }
+      setDocuments(prev => [newDoc, ...prev.map(d => ({ ...d, is_active: false }))])
+      setUploadedFile(newDoc)
       setMessages([{
         role: "system",
-        text: `"${filename}" indexed successfully. Ask me anything about it!`,
+        text: `"${filename}" uploaded! Indexing in the background — ready in ~15 seconds.`,
         sources: [],
         time: getTime()
       }])
-      toast.success(`"${filename}" indexed!`)
-      await loadDocuments()
+      setProcessingDocId(docId)
     } catch (err) {
       const s = err.response?.status
       const d = err.response?.data?.detail
@@ -565,16 +595,19 @@ export default function App() {
                 {documents.map(doc => (
                   <div
                     key={doc.id}
-                    onClick={() => !switching && switchDocument(doc)}
-                    className={`group relative flex items-start gap-2.5 px-2 py-2.5 rounded-lg cursor-pointer transition-all duration-150
+                    onClick={() => !switching && doc.status !== "pending" && switchDocument(doc)}
+                    className={`group relative flex items-start gap-2.5 px-2 py-2.5 rounded-lg transition-all duration-150
+                      ${doc.status === "pending" ? "cursor-default opacity-80" : "cursor-pointer"}
                       ${doc.is_active ? t.docRowActive : t.docRow}`}
                   >
                     {/* File icon */}
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
                       ${doc.is_active ? "bg-blue-500/20" : t.fileIconBg}`}>
-                      {doc.is_active
-                        ? <IconCheck />
-                        : <IconFile stroke={resolvedTheme === "dark" ? "#6b7280" : "#94a3b8"} />
+                      {doc.status === "pending"
+                        ? <Spinner size="xs" />
+                        : doc.is_active
+                          ? <IconCheck />
+                          : <IconFile stroke={resolvedTheme === "dark" ? "#6b7280" : "#94a3b8"} />
                       }
                     </div>
 
@@ -586,8 +619,11 @@ export default function App() {
                           : t.label}`}>
                         {doc.filename}
                       </p>
-                      <p className={`text-xs mt-0.5 ${t.subtext}`}>
-                        {formatDate(doc.uploaded_at)}{doc.file_size ? ` · ${formatSize(doc.file_size)}` : ""}
+                      <p className={`text-xs mt-0.5 ${doc.status === "pending" ? "text-blue-400" : t.subtext}`}>
+                        {doc.status === "pending"
+                          ? "Indexing..."
+                          : `${formatDate(doc.uploaded_at)}${doc.file_size ? ` · ${formatSize(doc.file_size)}` : ""}`
+                        }
                       </p>
                     </div>
 
@@ -818,17 +854,18 @@ export default function App() {
               className={`flex-1 border rounded-xl px-4 py-3 text-sm outline-none transition-all ${t.inputBg}`}
               placeholder={
                 switching ? "Switching document..." :
-                  uploadedFile ? `Ask anything about "${uploadedFile.filename}"...` :
-                    "Upload a document from the sidebar to start..."
+                  uploadedFile?.status === "pending" ? "Indexing document, please wait..." :
+                    uploadedFile ? `Ask anything about "${uploadedFile.filename}"...` :
+                      "Upload a document from the sidebar to start..."
               }
               value={question}
               onChange={e => setQuestion(e.target.value)}
               onKeyDown={e => e.key === "Enter" && sendMessage()}
-              disabled={!uploadedFile || loading || switching}
+              disabled={!uploadedFile || loading || switching || uploadedFile?.status === "pending"}
             />
             <button
               onClick={sendMessage}
-              disabled={loading || !uploadedFile || !question.trim() || switching}
+              disabled={loading || !uploadedFile || !question.trim() || switching || uploadedFile?.status === "pending"}
               className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all
                 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 ${t.sendBtn}`}
             >
