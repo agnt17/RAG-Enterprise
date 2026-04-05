@@ -140,33 +140,43 @@
 
 ## 2.2 Data Flow Architecture
 
-### Document Upload Flow
+### Document Upload Flow (Background Indexing)
+
 ```
 User → Frontend → POST /upload → Rate Limit Check → Plan Limit Check
                                          │
                                          ▼
-                              File Validation (PDF, size)
+                              File Validation (PDF, size, magic bytes)
                                          │
                                          ▼
                               Upload to Supabase Storage
                                          │
                                          ▼
-                              PDF Text Extraction (PyPDF)
+                              Create Document DB record (status="pending")
                                          │
                                          ▼
-                              Text Chunking (1000 chars, 200 overlap)
-                                         │
-                                         ▼
-                              Generate Embeddings (Cohere)
-                                         │
-                                         ▼
-                              Store in Pinecone (namespace=doc_id)
-                                         │
-                                         ▼
-                              Create DB Records (Document, Conversation)
-                                         │
-                                         ▼
-                              Return Success Response → Frontend Update
+                    ◄──── Return 200 immediately (~2-3s) ────────────────
+                    │                    │
+                    │                    ▼ (BackgroundTask — runs after response)
+                    │         PDF Text Extraction (PyPDF)
+                    │                    │
+                    │                    ▼
+                    │         Text Chunking (1000 chars, 200 overlap)
+                    │                    │
+                    │                    ▼
+                    │         Generate Embeddings (Cohere)
+                    │                    │
+                    │                    ▼
+                    │         Store in Pinecone (namespace=doc_id)
+                    │                    │
+                    │                    ▼
+                    │         Persist chunks to PostgreSQL (BM25)
+                    │                    │
+                    │                    ▼
+                    │         Update Document status → "ready" | "failed"
+                    │
+                    └── Frontend polls GET /documents/{id}/status every 2s
+                        until status = "ready" → enables chat input
 ```
 
 ### Query Processing Flow
@@ -1539,20 +1549,35 @@ Remove profile photo
 ## 11.3 Document Endpoints
 
 ### POST /upload
-Upload PDF document (multipart/form-data, rate limit: 10/day)
+Upload PDF document (multipart/form-data, rate limit: 10/day).
+
+Returns immediately (~2-3s) after uploading to Supabase. Indexing runs in a background task — poll the status endpoint to track completion.
 
 **Response:**
 ```json
 {
-  "message": "Ingested 45 chunks successfully",
+  "message": "Upload received, indexing in background",
   "filename": "contract.pdf",
   "document_id": "uuid...",
-  "file_path": "uuid_contract.pdf"
+  "file_path": "uuid_contract.pdf",
+  "status": "pending"
+}
+```
+
+### GET /documents/{id}/status
+
+Poll this endpoint every 2 seconds after upload to track background indexing progress.
+
+**Response:**
+```json
+{
+  "document_id": "uuid...",
+  "status": "pending | ready | failed"
 }
 ```
 
 ### GET /documents
-List all user documents
+List all user documents. Each document includes a `status` field (`"pending"` | `"ready"` | `"failed"`).
 
 ### POST /documents/{id}/activate
 Switch active document
@@ -2180,6 +2205,8 @@ Catches unhandled React errors and displays friendly error page.
 | Embeddings | Batch processing for document chunks |
 | Pinecone | Namespace isolation for fast queries |
 | Rate Limiting | Protects against abuse |
+| Upload latency | `POST /upload` returns in ~2-3s via FastAPI `BackgroundTasks`; ingestion (Cohere + Pinecone) runs after the response |
+| Cold starts | cron-job.org pings `GET /health` every 10 min to keep Render free-tier container warm; login drops from 15s → 2-3s |
 
 ## 18.2 Frontend Optimizations
 

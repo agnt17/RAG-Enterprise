@@ -134,7 +134,8 @@ rag-enterprise/
 | `POST` | `/verify-email` | Verify with OTP or magic link token |
 | `POST` | `/resend-verification` | Resend verification email with cooldown |
 | `POST` | `/login` | Login verified users |
-| `POST` | `/upload` | Upload and index a PDF file |
+| `POST` | `/upload` | Upload PDF — returns immediately, indexing runs in background |
+| `GET` | `/documents/{id}/status` | Poll indexing status: `pending` → `ready` \| `failed` |
 | `POST` | `/query` | Ask a question about the document |
 | `POST` | `/admin/cleanup-data` | **Admin only:** Cleanup users/documents/Pinecone (requires X-Admin-Secret header) |
 | `GET` | `/health` | Check server status |
@@ -234,6 +235,8 @@ curl -X POST http://localhost:8000/query \
 - [x] Hybrid search (BM25 keyword + Pinecone semantic via EnsembleRetriever)
 - [x] Cohere re-ranking for higher-quality context selection
 - [x] Usage analytics endpoint (`GET /analytics`)
+- [x] Background PDF indexing — upload returns in ~2-3s, polling via `GET /documents/{id}/status`
+- [x] Keep-alive cron job (cron-job.org) — eliminates Render cold-start login delays
 - [ ] RAGAS evaluation metrics (answer quality scoring)
 - [ ] Razorpay payment webhooks
 
