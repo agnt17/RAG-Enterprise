@@ -38,11 +38,11 @@ function FAQItem({ question, answer, isDark }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div className={`border rounded-xl overflow-hidden ${isDark ? "border-gray-800" : "border-slate-200"}`}>
+    <div className={`border rounded-xl overflow-hidden ${isDark ? "border-white/[0.08]" : "border-slate-200/50"}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full flex items-center justify-between px-5 py-4 text-left transition-colors cursor-pointer
-          ${isDark ? "hover:bg-gray-800/50" : "hover:bg-slate-50"}`}
+          ${isDark ? "hover:bg-white/[0.06]" : "hover:bg-white/40"}`}
       >
         <span className={`font-medium ${isDark ? "text-gray-200" : "text-slate-900"}`}>
           {question}
@@ -52,7 +52,7 @@ function FAQItem({ question, answer, isDark }) {
         </span>
       </button>
       {isOpen && (
-        <div className={`px-5 py-4 border-t ${isDark ? "border-gray-800 bg-gray-800/30" : "border-slate-100 bg-slate-50"}`}>
+        <div className={`px-5 py-4 border-t ${isDark ? "border-white/[0.08] bg-white/[0.04]" : "border-slate-100/80 bg-white/40"}`}>
           <p className={`text-sm leading-relaxed ${isDark ? "text-gray-400" : "text-slate-600"}`}>
             {answer}
           </p>
@@ -94,9 +94,9 @@ export default function HelpPage({ theme }) {
   ]
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className="min-h-screen">
       {/* Header */}
-      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-black/20 backdrop-blur-xl border-white/[0.08]" : "bg-white/70 backdrop-blur-xl border-slate-200/50"}`}>
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate("/")}
@@ -122,7 +122,7 @@ export default function HelpPage({ theme }) {
 
         {/* Contact Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
             <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center
               ${isDark ? "bg-blue-900/30 text-blue-400" : "bg-blue-100 text-blue-600"}`}>
               <IconMail />
@@ -141,7 +141,7 @@ export default function HelpPage({ theme }) {
             </a>
           </div>
 
-          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
             <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center
               ${isDark ? "bg-green-900/30 text-green-400" : "bg-green-100 text-green-600"}`}>
               <IconMessageCircle />
@@ -157,7 +157,7 @@ export default function HelpPage({ theme }) {
             </button>
           </div>
 
-          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
             <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center
               ${isDark ? "bg-purple-900/30 text-purple-400" : "bg-purple-100 text-purple-600"}`}>
               <IconBook />
@@ -175,7 +175,7 @@ export default function HelpPage({ theme }) {
         </div>
 
         {/* FAQs */}
-        <div className={`rounded-2xl border p-8 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+        <div className={`rounded-2xl border p-8 ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
           <h2 className={`text-xl font-bold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
             Frequently Asked Questions
           </h2>

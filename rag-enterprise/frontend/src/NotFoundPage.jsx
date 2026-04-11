@@ -34,7 +34,7 @@ export default function NotFoundPage() {
   const isDark = resolvedTheme === "dark"
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center px-6 ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className={`min-h-screen flex flex-col items-center justify-center px-6`}>
       {/* DocMind Logo */}
       <div className="flex items-center gap-2 mb-8">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
@@ -52,7 +52,7 @@ export default function NotFoundPage() {
           404
         </div>
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className={`w-28 h-28 rounded-2xl ${isDark ? "bg-gray-900 border-gray-700" : "bg-white border-slate-300"} border-2 flex items-center justify-center rotate-12 shadow-lg`}>
+          <div className={`w-28 h-28 rounded-2xl ${isDark ? "bg-white/[0.06] border-white/[0.1]" : "bg-white/80 border-slate-200/50"} border backdrop-blur-md flex items-center justify-center rotate-12 shadow-lg`}>
             <div className={`${isDark ? "text-gray-600" : "text-slate-400"}`}>
               <IconDocument />
             </div>
@@ -77,9 +77,9 @@ export default function NotFoundPage() {
         <button
           onClick={() => navigate(-1)}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors cursor-pointer
-            ${isDark 
-              ? "bg-gray-800 hover:bg-gray-700 text-gray-300" 
-              : "bg-slate-200 hover:bg-slate-300 text-slate-700"
+            ${isDark
+              ? "bg-white/[0.08] hover:bg-white/[0.12] text-white/80 border border-white/[0.1]"
+              : "bg-white/70 hover:bg-white/90 text-slate-700 border border-slate-200/60"
             }`}
         >
           <IconArrowLeft />

@@ -551,7 +551,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
   ]
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className="min-h-screen">
       {/* Progress bar */}
       <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
         <div className="max-w-4xl mx-auto px-6 py-4">
