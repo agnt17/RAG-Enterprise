@@ -154,8 +154,8 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
       className={`rounded-2xl border p-8 relative transition-all ${
         isDisabled
           ? isDark
-            ? "border-gray-800 bg-gray-900/50 opacity-60 cursor-not-allowed"
-            : "border-slate-200 bg-slate-100/50 opacity-60 cursor-not-allowed"
+            ? "border-white/[0.06] bg-white/[0.03] opacity-60 cursor-not-allowed"
+            : "border-slate-200/40 bg-white/30 opacity-60 cursor-not-allowed"
           : isSelected
             ? isDark
               ? "border-blue-500 ring-2 ring-blue-500/50 bg-gradient-to-br from-blue-900/30 to-purple-900/30 cursor-pointer"
@@ -164,9 +164,9 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
               ? isDark 
                 ? "border-blue-500 bg-gradient-to-br from-blue-900/20 to-purple-900/20 hover:from-blue-900/30 hover:to-purple-900/30 cursor-pointer" 
                 : "border-blue-400 bg-gradient-to-br from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 cursor-pointer"
-              : isDark 
-                ? "border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800 cursor-pointer" 
-                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 cursor-pointer"
+              : isDark
+                ? "border-white/[0.08] bg-white/[0.04] hover:border-white/[0.14] hover:bg-white/[0.07] backdrop-blur-xl cursor-pointer"
+                : "border-slate-200/50 bg-white/70 hover:border-slate-300/70 hover:bg-white/85 backdrop-blur-xl cursor-pointer"
       }`}>
       {isPopular && !isDisabled && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -227,8 +227,8 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
         className={`w-full py-3 rounded-lg font-medium mb-8 transition-colors
         ${isDisabled
           ? isDark
-            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-            : "bg-slate-200 text-slate-400 cursor-not-allowed"
+            ? "bg-white/[0.06] text-[#48484a] cursor-not-allowed"
+            : "bg-slate-200/60 text-slate-400 cursor-not-allowed"
           : isCurrentPlan
             ? isDark
               ? "bg-green-600 text-white cursor-default"
@@ -242,8 +242,8 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
                   ? "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
                   : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
                 : isDark
-                  ? "bg-gray-800 hover:bg-gray-700 text-gray-200 cursor-pointer"
-                  : "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+                  ? "bg-white/[0.1] hover:bg-white/[0.15] text-[#f5f5f7] cursor-pointer"
+                  : "bg-slate-800/90 hover:bg-slate-900 text-white cursor-pointer"
         }`}>
         {isCurrentPlan
           ? "Current Plan"
@@ -262,7 +262,7 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
           <div key={index} className="flex items-start gap-3">
             <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center
               ${isDisabled 
-                ? isDark ? "bg-gray-800 text-gray-600" : "bg-slate-200 text-slate-400"
+                ? isDark ? "bg-white/[0.06] text-[#48484a]" : "bg-slate-200/60 text-slate-400"
                 : isDark ? "bg-green-900/30 text-green-400" : "bg-green-100 text-green-600"
               }`}>
               <IconCheck />
@@ -322,10 +322,10 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
       
       {/* Modal */}
       <div className={`relative w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden ${
-        isDark ? "bg-gray-900" : "bg-white"
+        isDark ? "bg-black/80 backdrop-blur-2xl border border-white/[0.1]" : "bg-white/90 backdrop-blur-2xl border border-white/90"
       }`}>
         {/* Header */}
-        <div className={`px-6 py-4 border-b ${isDark ? "border-gray-800" : "border-slate-200"}`}>
+        <div className={`px-6 py-4 border-b ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`}>
           <div className="flex items-center justify-between">
             <h2 className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
               Payment Summary
@@ -333,7 +333,7 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
             <button 
               onClick={onClose}
               className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer
-                ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-slate-100 text-slate-500"}`}
+                ${isDark ? "hover:bg-white/[0.08] text-[#86868b]" : "hover:bg-white/60 text-slate-500"}`}
             >
               <IconClose />
             </button>
@@ -343,7 +343,7 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
         {/* Content */}
         <div className="px-6 py-5">
           {/* Plan Change Summary */}
-          <div className={`rounded-xl p-4 mb-5 ${isDark ? "bg-gray-800/50" : "bg-slate-50"}`}>
+          <div className={`rounded-xl p-4 mb-5 ${isDark ? "bg-white/[0.04]" : "bg-white/50"}`}>
             <div className="flex items-center justify-between mb-2">
               <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-500"}`}>
                 {fromLabel}
@@ -362,7 +362,7 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
             </div>
             {/* Plan Duration & Expiry */}
             {breakdown.new_plan_days && breakdown.new_plan_expires_at && (
-              <div className={`mt-3 pt-3 border-t ${isDark ? "border-gray-700" : "border-slate-200"}`}>
+              <div className={`mt-3 pt-3 border-t ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`}>
                 <div className="flex items-center justify-between text-sm">
                   <span className={isDark ? "text-gray-400" : "text-slate-500"}>
                     Plan duration
@@ -407,7 +407,7 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
                   <div className="group relative">
                     <IconInfo />
                     <div className={`absolute left-0 bottom-full mb-2 w-48 p-2 rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 ${
-                      isDark ? "bg-gray-700 text-gray-200" : "bg-slate-800 text-white"
+                      isDark ? "bg-white/[0.12] text-[#f5f5f7]" : "bg-slate-800 text-white"
                     }`}>
                       {breakdown.days_remaining} days remaining ({breakdown.credit_percentage}% of your {currentPlanName} plan)
                     </div>
@@ -439,7 +439,7 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
             )}
             
             {/* Divider */}
-            <div className={`border-t ${isDark ? "border-gray-700" : "border-slate-200"}`} />
+            <div className={`border-t ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`} />
             
             {/* Subtotal */}
             <div className="flex items-center justify-between">
@@ -462,7 +462,7 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
             </div>
             
             {/* Divider */}
-            <div className={`border-t-2 ${isDark ? "border-gray-700" : "border-slate-300"}`} />
+            <div className={`border-t-2 ${isDark ? "border-white/[0.1]" : "border-slate-300/60"}`} />
             
             {/* Total */}
             <div className="flex items-center justify-between">
@@ -510,14 +510,14 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
         </div>
         
         {/* Footer */}
-        <div className={`px-6 py-4 border-t ${isDark ? "border-gray-800 bg-gray-800/50" : "border-slate-100 bg-slate-50"}`}>
+        <div className={`px-6 py-4 border-t ${isDark ? "border-white/[0.08] bg-white/[0.04]" : "border-slate-100/80 bg-white/40"}`}>
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className={`flex-1 py-3 rounded-xl font-medium transition-colors cursor-pointer
                 ${isDark 
-                  ? "bg-gray-700 hover:bg-gray-600 text-gray-200" 
-                  : "bg-slate-200 hover:bg-slate-300 text-slate-700"
+                  ? "bg-white/[0.1] hover:bg-white/[0.15] text-[#f5f5f7]"
+                  : "bg-white/60 hover:bg-white/80 text-slate-700"
                 }`}
             >
               Cancel
@@ -839,14 +839,14 @@ export default function UpgradePlanPage({ theme, user }) {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className="min-h-screen">
       {/* Header */}
-      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-black/20 backdrop-blur-xl border-white/[0.08]" : "bg-white/70 backdrop-blur-xl border-slate-200/50"}`}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate("/")}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer
-              ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-slate-100 text-slate-600"}`}
+              ${isDark ? "hover:bg-white/[0.08] text-[#86868b]" : "hover:bg-white/60 text-slate-600"}`}
           >
             <IconArrowLeft />
           </button>
@@ -869,7 +869,7 @@ export default function UpgradePlanPage({ theme, user }) {
             </span>
             <span className={`font-semibold px-3 py-1 rounded-full text-sm ${
               currentPlan === "free" 
-                ? isDark ? "bg-gray-800 text-gray-300" : "bg-slate-200 text-slate-600"
+                ? isDark ? "bg-white/[0.08] text-[#86868b]" : "bg-slate-200/80 text-slate-600"
                 : currentPlan === "basic"
                   ? "bg-blue-100 text-blue-700"
                   : currentPlan === "pro"
@@ -892,7 +892,7 @@ export default function UpgradePlanPage({ theme, user }) {
 
         {/* Billing Cycle Toggle */}
         <div className="flex justify-center mb-10">
-          <div className={`inline-flex items-center p-1 rounded-xl ${isDark ? "bg-gray-800" : "bg-slate-200"}`}>
+          <div className={`inline-flex items-center p-1 rounded-xl ${isDark ? "bg-white/[0.08]" : "bg-slate-200/80"}`}>
             <button
               onClick={() => setBillingCycle("monthly")}
               className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
@@ -1022,7 +1022,7 @@ export default function UpgradePlanPage({ theme, user }) {
 
         {/* Coupon Code Input */}
         {selectedPlan && selectedPlan !== "enterprise" && selectedPlan !== "free" && isValidSelection() && (
-          <div className={`rounded-xl p-6 mb-6 ${isDark ? "bg-gray-900 border border-gray-800" : "bg-white border border-slate-200"}`}>
+          <div className={`rounded-xl p-6 mb-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border border-slate-200/50"}`}>
             <h3 className={`font-semibold mb-3 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-900"}`}>
               <IconTag />
               Have a coupon code?
@@ -1034,9 +1034,9 @@ export default function UpgradePlanPage({ theme, user }) {
                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                 placeholder="Enter coupon code"
                 className={`flex-1 px-4 py-2.5 rounded-lg border transition-colors
-                  ${isDark 
-                    ? "bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-blue-500" 
-                    : "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500"
+                  ${isDark
+                    ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#48484a] focus:border-white/[0.2]"
+                    : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"
                   } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
               />
               <button
@@ -1117,14 +1117,14 @@ export default function UpgradePlanPage({ theme, user }) {
         </div>
 
         {/* Feature Comparison Table */}
-        <div className={`rounded-2xl border p-8 mb-8 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+        <div className={`rounded-2xl border p-8 mb-8 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
           <h2 className={`text-xl font-bold mb-6 text-center ${isDark ? "text-white" : "text-slate-900"}`}>
             Compare All Features
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className={`border-b ${isDark ? "border-gray-700" : "border-slate-200"}`}>
+                <tr className={`border-b ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`}>
                   <th className={`text-left py-3 px-4 font-semibold ${isDark ? "text-gray-300" : "text-slate-700"}`}>Feature</th>
                   <th className={`text-center py-3 px-4 font-semibold ${isDark ? "text-gray-300" : "text-slate-700"}`}>Free</th>
                   <th className={`text-center py-3 px-4 font-semibold ${isDark ? "text-blue-400" : "text-blue-600"}`}>Basic</th>
@@ -1143,7 +1143,7 @@ export default function UpgradePlanPage({ theme, user }) {
                   { feature: "Team Collaboration", free: false, basic: false, pro: true },
                   { feature: "Prompting Tips", free: false, basic: "4 tips", pro: "5+ tips" },
                 ].map((row, idx) => (
-                  <tr key={idx} className={`border-b ${isDark ? "border-gray-800" : "border-slate-100"}`}>
+                  <tr key={idx} className={`border-b ${isDark ? "border-white/[0.06]" : "border-slate-100/80"}`}>
                     <td className={`py-3 px-4 ${isDark ? "text-white" : "text-slate-900"}`}>{row.feature}</td>
                     <td className="py-3 px-4">
                       <div className="flex justify-center items-center">
@@ -1174,7 +1174,7 @@ export default function UpgradePlanPage({ theme, user }) {
         </div>
 
         {/* FAQ Section */}
-        <div className={`rounded-2xl border p-8 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+        <div className={`rounded-2xl border p-8 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
           <h2 className={`text-xl font-bold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
             Frequently Asked Questions
           </h2>
