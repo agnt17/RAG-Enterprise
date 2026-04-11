@@ -10,7 +10,9 @@
 3. [Technology Stack](#3-technology-stack)
 4. [Backend Architecture](#4-backend-architecture)
 5. [Frontend Architecture](#5-frontend-architecture)
-   - [5.6 Profile Dropdown Component](#56-profile-dropdown-component)
+    - [5.6 Profile Dropdown Component](#56-profile-dropdown-component)
+    - [5.7 Responsive UX and Mobile Safety](#57-responsive-ux-and-mobile-safety)
+    - [5.8 Animation and Loading Choreography](#58-animation-and-loading-choreography)
 6. [Database Design](#6-database-design)
 7. [Authentication & Authorization](#7-authentication--authorization)
    - [7.5 Email Verification Flow](#75-email-verification-flow)
@@ -427,28 +429,43 @@ def get_me(current_user: User = Depends(get_current_user)):
 ```
 frontend/
 ├── src/
-│   ├── main.jsx              # Entry point, React root
-│   ├── AppRouter.jsx         # Route definitions, wrappers
-│   ├── App.jsx               # Main chat interface (~900 lines)
-│   ├── AuthPage.jsx          # Login/register/verify UI
-│   ├── SettingsPage.jsx      # User settings (~600 lines)
-│   ├── UpgradePlanPage.jsx   # Plan selection & payment
-│   ├── PremiumWelcomePage.jsx# Post-upgrade onboarding
-│   ├── HelpPage.jsx          # FAQ and support
-│   ├── ProfileDropdown.jsx   # User menu component
-│   ├── Toast.jsx             # Notification system
-│   ├── Loader.jsx            # Loading components
-│   ├── LanguageContext.jsx   # i18n context (en/hi)
-│   ├── ErrorBoundary.jsx     # Error handling wrapper
-│   ├── NotFoundPage.jsx      # 404 page
-│   ├── ServerErrorPage.jsx   # 500 page
-│   ├── index.css             # Global styles
-│   └── assets/               # Static assets
-├── public/                   # Public static files
-├── package.json              # Dependencies
-├── vite.config.js            # Vite configuration
-├── tailwind.config.js        # Tailwind configuration
-└── postcss.config.js         # PostCSS configuration
+│   ├── main.jsx                # Entry point, providers
+│   ├── AppRouter.jsx           # Routes + global background layers
+│   ├── App.jsx                 # Auth/app shell + data orchestration
+│   ├── MeshBackground.jsx      # Animated mesh background blobs
+│   ├── AuthPage.jsx            # Login/register/verify UI
+│   ├── SettingsPage.jsx        # User profile + billing + security
+│   ├── UpgradePlanPage.jsx     # Pricing and checkout
+│   ├── PremiumWelcomePage.jsx  # Post-upgrade onboarding flow
+│   ├── HelpPage.jsx            # FAQ and support
+│   ├── ProfileDropdown.jsx     # User menu + theme flyout
+│   ├── Toast.jsx               # Global toast store + container
+│   ├── Loader.jsx              # Spinner/loader primitives
+│   ├── LanguageContext.jsx     # i18n context (en/hi)
+│   ├── ErrorBoundary.jsx       # Runtime error boundaries
+│   ├── NotFoundPage.jsx        # 404 page
+│   ├── ServerErrorPage.jsx     # 500 page
+│   ├── index.css               # Global styles + shimmer/focus utilities
+│   ├── components/
+│   │   ├── Sidebar.jsx         # Responsive left rail
+│   │   ├── DocumentRow.jsx     # Document list item + action menu
+│   │   ├── ChatHeader.jsx      # Active doc header
+│   │   ├── ChatMessages.jsx    # Message list + loading states
+│   │   ├── MessageBubble.jsx   # Message rendering + citations
+│   │   ├── ChatInput.jsx       # Query input + send button
+│   │   ├── QuickActions.jsx    # Prompt templates row
+│   │   └── SourceModal.jsx     # Source excerpt modal
+│   ├── lib/
+│   │   ├── api.js              # API base URL resolution
+│   │   ├── animations.js       # Shared motion presets
+│   │   ├── templates.js        # Role-based quick prompts
+│   │   ├── themes.js           # UI token maps for light/dark
+│   │   └── utils.js            # Time/date/size helpers
+│   └── assets/
+├── public/
+├── package.json
+├── vite.config.js
+└── eslint.config.js
 ```
 
 ## 5.2 Component Hierarchy
@@ -458,39 +475,31 @@ main.jsx
 └── ErrorBoundary
     └── GoogleOAuthProvider
         └── AppRouter
-            ├── App (/)
-            │   ├── Sidebar
-            │   │   ├── Logo
-            │   │   ├── UploadButton
-            │   │   ├── DocumentList
-            │   │   │   └── DocumentItem (×n)
-            │   │   └── ProfileDropdown
-            │   │       └── ThemeSubmenu
-            │   └── MainContent
-            │       ├── Header
-            │       ├── ChatMessages
-            │       │   └── MessageBubble (×n)
-            │       └── InputArea
-            │
-            ├── SettingsPage (/settings)
-            │   ├── ProfileSection
-            │   ├── DetailsForm
-            │   ├── PlanSection
-            │   └── UsageSection
-            │
-            ├── UpgradePlanPage (/upgrade)
-            │   ├── BillingToggle
-            │   └── PricingCard (×4)
-            │
-            ├── PremiumWelcomePage (/welcome)
-            │   ├── WelcomeStep
-            │   ├── FeaturesStep
-            │   ├── ProfessionStep
-            │   └── TipsStep
-            │
-            ├── HelpPage (/help)
-            ├── NotFoundPage (*)
-            └── ServerErrorPage (/error)
+      ├── GlobalBaseLayer
+      ├── MeshBackground
+      └── Routes
+        ├── App (/)
+        │   ├── BootScreen
+        │   ├── AuthPage (when token absent)
+        │   └── MainShell (when token present)
+        │       ├── Sidebar
+        │       │   ├── UploadButton
+        │       │   ├── DocumentRow (x n)
+        │       │   └── ProfileDropdown
+        │       │       └── ThemeFlyout (portal)
+        │       └── MainContent
+        │           ├── ChatHeader
+        │           ├── ChatMessages
+        │           │   └── MessageBubble (x n)
+        │           ├── QuickActions
+        │           ├── ChatInput
+        │           └── SourceModal
+        ├── SettingsPageWrapper -> SettingsPage (/settings)
+        ├── HelpPageWrapper -> HelpPage (/help)
+        ├── UpgradePlanPageWrapper -> UpgradePlanPage (/upgrade)
+        ├── PremiumWelcomePageWrapper -> PremiumWelcomePage (/welcome)
+        ├── ServerErrorPage (/error)
+        └── NotFoundPage (*)
 ```
 
 ## 5.3 State Management Strategy
@@ -562,22 +571,22 @@ function ProtectedWrapper({ Component }) {
 ```javascript
 const themes = {
   light: {
-    page: "bg-slate-100",
+    page: "bg-slate-50",
     sidebar: "bg-white border-slate-200",
     card: "bg-white border-slate-200",
-    title: "text-slate-900",
-    msgUser: "bg-slate-900 text-white",
-    msgAi: "bg-white border-slate-200 text-slate-800",
-    // ... 20+ properties
+    msgUser: "bg-[#0071e3] text-white",
+    msgAi: "bg-white border border-slate-200 text-[#1d1d1f]",
+    inputBg: "bg-white border-slate-200 ...",
+    // ... layout, typography, action, and elevation tokens
   },
   dark: {
-    page: "bg-gray-950",
-    sidebar: "bg-gray-900 border-gray-800",
-    card: "bg-gray-900 border-gray-800",
-    title: "text-white",
-    msgUser: "bg-blue-600 text-white",
-    msgAi: "bg-gray-800 text-gray-100",
-    // ... 20+ properties
+    page: "bg-[#09090b]",
+    sidebar: "bg-[#111113] border-white/8",
+    card: "bg-[#111113] border-white/8",
+    msgUser: "bg-[#0a84ff] text-white",
+    msgAi: "bg-[#1c1c1e] border border-white/8 text-[#f5f5f7]",
+    inputBg: "bg-white/6 border-white/10 ...",
+    // ... layout, typography, action, and elevation tokens
   }
 }
 ```
@@ -654,6 +663,12 @@ useEffect(() => {
 }, [])
 ```
 
+### Responsive Behavior Upgrades
+
+- Main dropdown width is constrained on small screens (`w-[min(88vw,15rem)]`) to avoid overflow.
+- Theme submenu is rendered through a portal and positioned with viewport clamping so it never renders off-screen.
+- Theme flyout auto-closes on window resize and scroll to prevent stale positioning.
+
 ### Profile Image Logic
 
 ```javascript
@@ -667,6 +682,43 @@ const getProfileImage = () => {
   return <span>{user.name?.[0]?.toUpperCase() || "U"}</span>
 }
 ```
+
+## 5.7 Responsive UX and Mobile Safety
+
+The frontend now uses a shell-first responsive strategy. Shared shell components (`App`, `Sidebar`, `ChatHeader`, `ChatInput`, `Toast`) enforce mobile-safe behavior so route pages inherit consistent responsiveness.
+
+### Core Responsiveness Rules
+
+| Area | Implementation | Purpose |
+|------|----------------|---------|
+| Viewport height | `h-[100dvh]` app shell + `min-height: 100dvh` on `body/#root` | Prevents mobile browser toolbar jump issues |
+| Horizontal overflow | `overflow-x: hidden` globally | Eliminates sideways scrolling on narrow screens |
+| Safe area support | `paddingBottom: max(..., env(safe-area-inset-bottom))` | Avoids clipped controls on notched iOS devices |
+| Sidebar width | `w-[min(88vw,18rem)] sm:w-72` | Keeps navigation usable on small phones |
+| Touch-first menus | Persistent action icon opacity on mobile | Removes hover-only interaction dependency |
+| Floating menus | Portal-based positioning + viewport clamping | Prevents off-screen action/theme menus |
+
+### Components With Explicit Mobile Safeguards
+
+- `Sidebar.jsx`: mobile overlay, responsive width, independent scroll area, safe-area padding in footer.
+- `DocumentRow.jsx`: 3-dot action menu clamped to viewport and usable without hover.
+- `ChatHeader.jsx`: tighter spacing and stricter filename truncation on small screens.
+- `ChatInput.jsx`: mobile text sizing/padding tuned to improve typing ergonomics.
+- `Toast.jsx`: centered top placement on mobile with bounded width (`max-w-[min(92vw,24rem)]`).
+- `SourceModal.jsx`: compact mobile spacing and `max-h-[65dvh]` scrollable content body.
+- `PremiumWelcomePage.jsx`: bottom action bar includes safe-area bottom padding.
+
+## 5.8 Animation and Loading Choreography
+
+UI transitions are centralized in `lib/animations.js` to keep motion consistent across routes/components.
+
+### Key Motion Patterns
+
+- `AnimatePresence` route-state choreography in `App.jsx` for boot, auth, and app shells.
+- Boot screen uses an animated progress bar and scale/fade exit transition.
+- Message list uses staggered reveal (`staggerChildren: 0.06`) with spring-based bubble entry.
+- Switching documents shows themed skeleton rows (`skeleton-light`/`skeleton-dark`) before content settles.
+- A delayed loading hint appears after 6 seconds: "Taking longer than usual — server may be warming up." to set user expectations during backend cold starts.
 
 ---
 
@@ -2284,8 +2336,11 @@ npm run build  # Production build
 | `backend/auth.py` | Authentication |
 | `backend/rag.py` | AI query pipeline |
 | `backend/payment.py` | Razorpay integration |
-| `frontend/src/App.jsx` | Main chat UI |
-| `frontend/src/AppRouter.jsx` | Route definitions |
+| `frontend/src/App.jsx` | App shell, auth/app transitions, chat orchestration |
+| `frontend/src/AppRouter.jsx` | Global background layers + route wrappers |
+| `frontend/src/components/Sidebar.jsx` | Responsive document rail and profile area |
+| `frontend/src/components/ChatMessages.jsx` | Message rendering, skeletons, delayed loading hint |
+| `frontend/src/lib/themes.js` | Theme token system used across all UI surfaces |
 
 ---
 

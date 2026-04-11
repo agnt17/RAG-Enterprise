@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /x/\"New folder\"/rag-enterprise/backend/*.py)",
+      "Bash(npm run:*)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies['framer-motion']\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies['lucide-react']\\)\")",
+      "WebFetch(domain:ssscript.app)"
+    ]
+  }
+}

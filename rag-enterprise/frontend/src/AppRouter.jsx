@@ -7,11 +7,26 @@ import UpgradePlanPage from "./UpgradePlanPage"
 import PremiumWelcomePage from "./PremiumWelcomePage"
 import NotFoundPage from "./NotFoundPage"
 import ServerErrorPage from "./ServerErrorPage"
+import MeshBackground from "./MeshBackground"
+
+function getResolvedTheme() {
+  const theme = localStorage.getItem("theme") || "system"
+  const systemIsDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches
+  return theme === "system" ? (systemIsDark ? "dark" : "light") : theme
+}
 
 export default function AppRouter() {
+  const resolvedTheme = getResolvedTheme()
   return (
-    <BrowserRouter>
-      <Routes>
+    <>
+      {/* Global base color — sits behind mesh and all page content */}
+      <div
+        className="fixed inset-0"
+        style={{ zIndex: -2, backgroundColor: resolvedTheme === "dark" ? "#000000" : "#f0f4ff" }}
+      />
+      <MeshBackground resolvedTheme={resolvedTheme} />
+      <BrowserRouter>
+        <Routes>
         <Route path="/" element={<App />} />
         <Route path="/settings" element={<SettingsPageWrapper />} />
         <Route path="/help" element={<HelpPageWrapper />} />
@@ -20,7 +35,8 @@ export default function AppRouter() {
         <Route path="/error" element={<ServerErrorPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </>
   )
 }
 

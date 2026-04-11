@@ -1,4 +1,4 @@
-# DocMind AI — Enterprise Document Intelligence
+﻿# DocMind AI — Enterprise Document Intelligence
 
 A production-grade **Retrieval-Augmented Generation (RAG)** application that lets you upload any PDF and have an intelligent conversation with it. Built with LangChain, Groq (LLaMA-3.3-70b), Pinecone, and React.
 
@@ -32,7 +32,20 @@ User asks question → Convert to Vector → Find similar chunks → Send to LLa
 | Vector DB | Pinecone | Store & search embeddings |
 | RAG Framework | LangChain | Orchestrates the pipeline |
 | Backend | FastAPI + Python | REST API server |
-| Frontend | React + Vite + Tailwind | Chat UI |
+| Frontend | React + Vite + Tailwind + Framer Motion | Responsive chat UI |
+
+---
+
+## UI Modernization (April 2026)
+
+Recent frontend updates focused on mobile-first responsiveness and clearer interaction feedback while keeping all existing product features intact.
+
+- Responsive app shell with dynamic viewport sizing (`100dvh`) and horizontal overflow protection.
+- Safe-area aware spacing for bottom controls (`env(safe-area-inset-bottom)`) on modern mobile browsers.
+- Componentized chat interface (`Sidebar`, `ChatHeader`, `ChatMessages`, `ChatInput`, `QuickActions`, `SourceModal`) for easier maintenance.
+- Better touch behavior for document actions and profile/theme menus via viewport-clamped portal dropdowns.
+- Improved loading UX with themed skeleton shimmer, staggered message reveal, and delayed "server warming up" hint.
+- Mobile-friendly toast positioning and width constraints.
 
 ---
 
@@ -117,8 +130,24 @@ rag-enterprise/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx      # Main React component
-│   │   └── index.css    # Tailwind CSS
+│   │   ├── AppRouter.jsx         # Routes + global background layers
+│   │   ├── App.jsx               # App shell + chat orchestration
+│   │   ├── MeshBackground.jsx    # Animated background
+│   │   ├── components/
+│   │   │   ├── Sidebar.jsx
+│   │   │   ├── ChatHeader.jsx
+│   │   │   ├── ChatMessages.jsx
+│   │   │   ├── ChatInput.jsx
+│   │   │   ├── DocumentRow.jsx
+│   │   │   ├── QuickActions.jsx
+│   │   │   └── SourceModal.jsx
+│   │   ├── lib/
+│   │   │   ├── api.js
+│   │   │   ├── animations.js
+│   │   │   ├── themes.js
+│   │   │   ├── templates.js
+│   │   │   └── utils.js
+│   │   └── index.css
 │   └── package.json
 ├── .env.sample          # Environment variables template
 └── README.md
@@ -280,7 +309,4 @@ MIT License — feel free to use this project for learning, portfolio, or buildi
 **Aditya Gupta** — Software Engineer specializing in AI-native systems and cloud infrastructure.
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/itsadityagupta17/)
-[![GitHub](https://img.shields.io/badge/GitHub-Follow-black)](https://github.com/agnt17)
-#   t e s t  
- #   T e s t i n g   C I  
- 
+[![GitHub](https://img.shields.io/badge/GitHub-Follow-black)](https://github.com/agnt17)

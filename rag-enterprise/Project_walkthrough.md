@@ -67,8 +67,20 @@ rag-enterprise/
 │
 ├── frontend/                   ← React application
 │   └── src/
-│       ├── App.jsx             ← Entire frontend UI
-│       └── index.css           ← Tailwind CSS
+│       ├── AppRouter.jsx       ← Routes + global background layers
+│       ├── App.jsx             ← App shell + state orchestration
+│       ├── MeshBackground.jsx  ← Animated gradient mesh
+│       ├── components/
+│       │   ├── Sidebar.jsx
+│       │   ├── ChatHeader.jsx
+│       │   ├── ChatMessages.jsx
+│       │   ├── MessageBubble.jsx
+│       │   ├── ChatInput.jsx
+│       │   ├── QuickActions.jsx
+│       │   ├── DocumentRow.jsx
+│       │   └── SourceModal.jsx
+│       ├── lib/                ← themes, animations, api, utils, templates
+│       └── index.css           ← Global styles + shimmer/focus utilities
 │
 ├── .env                        ← Secret API keys (never committed)
 ├── .env.sample                 ← Template showing what keys are needed
@@ -250,7 +262,27 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 ---
 
-### `App.jsx` — The Entire Frontend
+### `App.jsx` + Modular UI Components — The Current Frontend
+
+Initially, most UI logic lived in `App.jsx`. The current frontend keeps business/data orchestration in `App.jsx` and pushes rendering into focused components.
+
+**Current composition:**
+```text
+App.jsx
+├── Sidebar
+│   └── DocumentRow (xN)
+├── ChatHeader
+├── ChatMessages
+│   └── MessageBubble (xN)
+├── QuickActions
+├── ChatInput
+└── SourceModal
+
+AppRouter
+├── Global base color layer
+├── MeshBackground
+└── Route wrappers (settings/help/upgrade/welcome)
+```
 
 **State Management**
 ```javascript
@@ -259,11 +291,13 @@ const [uploading, setUploading] = useState(false)
 const [uploadedFile, setUploadedFile] = useState(null)
 const [loading, setLoading] = useState(false)
 ```
-Four pieces of state drive the entire UI:
+These are the core states that drive the chat shell:
 - `messages` — array of all chat messages, each with role (user/ai/system), text, and timestamp
 - `uploading` — shows the progress bar animation during PDF processing
 - `uploadedFile` — once set, enables the input box
 - `loading` — shows the bouncing dots animation while waiting for AI response
+
+On top of this, the current shell also manages responsive UI state (`sidebarOpen`), document switching/loading states, and source-modal visibility.
 
 **The Upload Flow**
 ```javascript
@@ -282,6 +316,13 @@ const res = await axios.post(`${API}/query`, { question: q })
 setMessages(prev => [...prev, { role: "ai", text: res.data.answer, time: getTime() }])
 ```
 We add the user message immediately (optimistic UI — don't wait for the server), then await the AI response and add it when it arrives. This makes the interface feel responsive.
+
+**Responsive UX layer (recent upgrade):**
+- App shell runs on `100dvh` with global `overflow-x: hidden` to prevent mobile layout jumps.
+- Input/footer and onboarding actions use safe-area padding with `env(safe-area-inset-bottom)`.
+- Sidebar uses a mobile overlay and constrained width (`min(88vw, 18rem)`).
+- Profile and document action menus are portal-based and clamped to the viewport (no off-screen menus).
+- Chat loading UX now includes themed skeleton shimmer and a delayed "server warming up" hint after 6 seconds.
 
 ---
 

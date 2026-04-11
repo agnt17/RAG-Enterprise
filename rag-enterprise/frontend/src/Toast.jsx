@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { CheckCircle2, XCircle, Loader2, Info, X } from "lucide-react"
+import { ease } from "./lib/animations"
 
-// ── Toast Store — lives outside React ─────────────────────
-// We use a simple event-based system so any component can
-// trigger a toast without prop drilling
+// ── Toast store — event-based, no prop drilling ───────────
 let listeners = []
 
 export const toast = {
@@ -12,203 +13,96 @@ export const toast = {
   info:    (message) => emit({ type: "info",     message }),
 }
 
-function emit(toast) {
+function emit(t) {
   const id = Date.now() + Math.random()
-  listeners.forEach(fn => fn({ ...toast, id }))
+  listeners.forEach(fn => fn({ ...t, id }))
 }
 
-// ── Single Toast Item ──────────────────────────────────────
-function ToastItem({ toast, onRemove, resolvedTheme }) {
-  const [visible, setVisible] = useState(false)
-  const [leaving, setLeaving] = useState(false)
+// ── Colors ────────────────────────────────────────────────
+const styles = {
+  light: {
+    success: { bg: "bg-white",      border: "border-emerald-200", icon: "text-emerald-500", text: "text-slate-800" },
+    error:   { bg: "bg-white",      border: "border-red-200",     icon: "text-red-500",     text: "text-slate-800" },
+    loading: { bg: "bg-white",      border: "border-blue-200",    icon: "text-blue-500",    text: "text-slate-800" },
+    info:    { bg: "bg-white",      border: "border-slate-200",   icon: "text-slate-500",   text: "text-slate-800" },
+  },
+  dark: {
+    success: { bg: "bg-[#1c1c1e]", border: "border-emerald-700/40", icon: "text-emerald-400", text: "text-[#f5f5f7]" },
+    error:   { bg: "bg-[#1c1c1e]", border: "border-red-700/40",     icon: "text-red-400",     text: "text-[#f5f5f7]" },
+    loading: { bg: "bg-[#1c1c1e]", border: "border-blue-700/40",    icon: "text-blue-400",    text: "text-[#f5f5f7]" },
+    info:    { bg: "bg-[#1c1c1e]", border: "border-[#2c2c2e]",      icon: "text-[#86868b]",   text: "text-[#f5f5f7]" },
+  },
+}
+
+const icons = {
+  success: <CheckCircle2 size={16} />,
+  error:   <XCircle      size={16} />,
+  loading: <Loader2      size={16} className="animate-spin" />,
+  info:    <Info         size={16} />,
+}
+
+// ── Single toast ──────────────────────────────────────────
+function ToastItem({ toast: t, onRemove, resolvedTheme }) {
+  const dismiss = useCallback(() => onRemove(t.id), [t.id, onRemove])
 
   useEffect(() => {
-    // Trigger enter animation on mount
-    const enterTimer = setTimeout(() => setVisible(true), 10)
-
-    // Auto dismiss after 4 seconds (loading toasts stay until dismissed)
-    let exitTimer
-    if (toast.type !== "loading") {
-      exitTimer = setTimeout(() => dismiss(), 4000)
-    }
-
-    return () => {
-      clearTimeout(enterTimer)
-      clearTimeout(exitTimer)
-    }
+    if (t.type === "loading") return
+    const timer = setTimeout(dismiss, 4000)
+    return () => clearTimeout(timer)
   }, [])
 
-  const dismiss = useCallback(() => {
-    setLeaving(true)
-    setTimeout(() => onRemove(toast.id), 300) // wait for exit animation
-  }, [toast.id, onRemove])
-
-  // ── Icon per type ────────────────────────────────────────
-  const icons = {
-    success: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="20 6 9 17 4 12"/>
-      </svg>
-    ),
-    error: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    ),
-    loading: (
-      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24"
-        fill="none" stroke="currentColor" strokeWidth="2.5">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-        <path className="opacity-75" fill="currentColor"
-          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-      </svg>
-    ),
-    info: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-    ),
-  }
-
-  // ── Colors per type — respects dark/light theme ──────────
-  const styles = {
-    light: {
-      success: {
-        bg:     "bg-emerald-50",
-        border: "border-emerald-200",
-        icon:   "bg-emerald-100 text-emerald-600",
-        text:   "text-emerald-900",
-      },
-      error: {
-        bg:     "bg-red-50",
-        border: "border-red-200",
-        icon:   "bg-red-100 text-red-600",
-        text:   "text-red-900",
-      },
-      loading: {
-        bg:     "bg-blue-50",
-        border: "border-blue-200",
-        icon:   "bg-blue-100 text-blue-600",
-        text:   "text-blue-900",
-      },
-      info: {
-        bg:     "bg-slate-50",
-        border: "border-slate-200",
-        icon:   "bg-slate-100 text-slate-600",
-        text:   "text-slate-900",
-      },
-    },
-    dark: {
-      success: {
-        bg:     "bg-emerald-900/30",
-        border: "border-emerald-700/50",
-        icon:   "bg-emerald-800/50 text-emerald-400",
-        text:   "text-emerald-100",
-      },
-      error: {
-        bg:     "bg-red-900/30",
-        border: "border-red-700/50",
-        icon:   "bg-red-800/50 text-red-400",
-        text:   "text-red-100",
-      },
-      loading: {
-        bg:     "bg-blue-900/30",
-        border: "border-blue-700/50",
-        icon:   "bg-blue-800/50 text-blue-400",
-        text:   "text-blue-100",
-      },
-      info: {
-        bg:     "bg-gray-800",
-        border: "border-gray-700",
-        icon:   "bg-gray-700 text-gray-300",
-        text:   "text-gray-100",
-      },
-    },
-  }
-
-  const s = styles[resolvedTheme][toast.type]
+  const s = styles[resolvedTheme]?.[t.type] ?? styles.dark[t.type]
 
   return (
-    <div
-      onClick={() => toast.type !== "loading" && dismiss()}
-      className={`
-        flex items-center gap-3 px-4 py-3 rounded-xl border
-        shadow-lg backdrop-blur-md cursor-pointer
-        max-w-sm w-full
-        transition-all duration-300 ease-out
-        ${s.bg} ${s.border}
-        ${visible && !leaving
-          ? "opacity-100 translate-y-0 scale-100"
-          : "opacity-0 -translate-y-2 scale-95"
-        }
-      `}
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -10, scale: 0.96 }}
+      animate={{ opacity: 1,  y: 0,   scale: 1    }}
+      exit={{    opacity: 0,  y: -10, scale: 0.96 }}
+      transition={ease.spring}
+      onClick={() => t.type !== "loading" && dismiss()}
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg backdrop-blur-sm
+        max-w-[min(92vw,24rem)] sm:max-w-sm w-full cursor-pointer select-none
+        ${s.bg} ${s.border}`}
     >
-      {/* Icon */}
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${s.icon}`}>
-        {icons[toast.type]}
-      </div>
-
-      {/* Message */}
-      <p className={`text-sm font-medium flex-1 ${s.text}`}>
-        {toast.message}
-      </p>
-
-      {/* Close button — only on non-loading toasts */}
-      {toast.type !== "loading" && (
-        <button
+      <span className={`shrink-0 ${s.icon}`}>{icons[t.type]}</span>
+      <p className={`text-sm font-medium flex-1 leading-snug ${s.text}`}>{t.message}</p>
+      {t.type !== "loading" && (
+        <motion.button
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.85 }}
+          transition={ease.springBouncy}
           onClick={e => { e.stopPropagation(); dismiss() }}
-          className={`flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity ${s.text}`}
+          className={`shrink-0 opacity-40 hover:opacity-90 transition-opacity ${s.text}`}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+          <X size={13} />
+        </motion.button>
       )}
-    </div>
+    </motion.div>
   )
 }
 
-// ── Toast Container — renders all active toasts ────────────
+// ── Container ─────────────────────────────────────────────
 export function ToastContainer({ resolvedTheme }) {
   const [toasts, setToasts] = useState([])
 
   useEffect(() => {
-    // Subscribe to toast events
-    const handler = (newToast) => {
-      setToasts(prev => [...prev, newToast])
-    }
+    const handler = t => setToasts(prev => [...prev, t])
     listeners.push(handler)
-
-    // Cleanup on unmount
-    return () => {
-      listeners = listeners.filter(fn => fn !== handler)
-    }
+    return () => { listeners = listeners.filter(fn => fn !== handler) }
   }, [])
 
-  const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
-  }, [])
+  const remove = useCallback(id => setToasts(prev => prev.filter(t => t.id !== id)), [])
 
   return (
-    // Fixed position — bottom right corner
-    // z-50 ensures it's above everything else
-    <div className="fixed top-6 right-6 z-50 flex flex-col gap-2 items-end">
-      {toasts.map(t => (
-        <ToastItem
-          key={t.id}
-          toast={t}
-          onRemove={removeToast}
-          resolvedTheme={resolvedTheme}
-        />
-      ))}
+    <div className="fixed top-3 sm:top-5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-5 sm:translate-x-0 z-50 flex flex-col gap-2 items-center sm:items-end pointer-events-none w-[calc(100%-1rem)] sm:w-auto">
+      <AnimatePresence mode="popLayout">
+        {toasts.map(t => (
+          <div key={t.id} className="pointer-events-auto">
+            <ToastItem toast={t} onRemove={remove} resolvedTheme={resolvedTheme} />
+          </div>
+        ))}
+      </AnimatePresence>
     </div>
   )
 }

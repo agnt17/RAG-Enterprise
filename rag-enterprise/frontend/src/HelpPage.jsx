@@ -38,21 +38,21 @@ function FAQItem({ question, answer, isDark }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div className={`border rounded-xl overflow-hidden ${isDark ? "border-gray-800" : "border-slate-200"}`}>
+    <div className={`border rounded-xl overflow-hidden ${isDark ? "border-white/[0.08]" : "border-slate-200/50"}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full flex items-center justify-between px-5 py-4 text-left transition-colors cursor-pointer
-          ${isDark ? "hover:bg-gray-800/50" : "hover:bg-slate-50"}`}
+          ${isDark ? "hover:bg-white/[0.06]" : "hover:bg-white/40"}`}
       >
         <span className={`font-medium ${isDark ? "text-gray-200" : "text-slate-900"}`}>
           {question}
         </span>
-        <span className={`transition-transform ${isOpen ? "rotate-180" : ""}`}>
+        <span className={`transition-transform ${isOpen ? "rotate-180" : ""} ${isDark ? "text-white" : "text-slate-700"}`}>
           <IconChevronDown />
         </span>
       </button>
       {isOpen && (
-        <div className={`px-5 py-4 border-t ${isDark ? "border-gray-800 bg-gray-800/30" : "border-slate-100 bg-slate-50"}`}>
+        <div className={`px-5 py-4 border-t ${isDark ? "border-white/[0.08] bg-white/[0.04]" : "border-slate-100/80 bg-white/40"}`}>
           <p className={`text-sm leading-relaxed ${isDark ? "text-gray-400" : "text-slate-600"}`}>
             {answer}
           </p>
@@ -94,35 +94,35 @@ export default function HelpPage({ theme }) {
   ]
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className="min-h-screen">
       {/* Header */}
-      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
+      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-black/20 backdrop-blur-xl border-white/[0.08]" : "bg-white/70 backdrop-blur-xl border-slate-200/50"}`}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-4">
           <button
             onClick={() => navigate("/")}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer
-              ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-slate-100 text-slate-600"}`}
+              ${isDark ? "hover:bg-gray-800 text-white" : "hover:bg-slate-100 text-slate-700"}`}
           >
             <IconArrowLeft />
           </button>
-          <h1 className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+          <h1 className={`text-xl sm:text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
             Help & Support
           </h1>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Hero Section */}
-        <div className="mb-12 text-center">
+        <div className="mb-8 sm:mb-12 text-center">
           <p className={`text-lg ${isDark ? "text-gray-400" : "text-slate-600"}`}>
             Get help with your account and learn how to use the platform
           </p>
         </div>
 
         {/* Contact Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-10 sm:mb-12">
+          <div className={`rounded-2xl border p-5 sm:p-6 text-center ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
             <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center
               ${isDark ? "bg-blue-900/30 text-blue-400" : "bg-blue-100 text-blue-600"}`}>
               <IconMail />
@@ -141,7 +141,7 @@ export default function HelpPage({ theme }) {
             </a>
           </div>
 
-          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 text-center ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
             <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center
               ${isDark ? "bg-green-900/30 text-green-400" : "bg-green-100 text-green-600"}`}>
               <IconMessageCircle />
@@ -157,7 +157,7 @@ export default function HelpPage({ theme }) {
             </button>
           </div>
 
-          <div className={`rounded-2xl border p-6 text-center ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 text-center ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
             <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center
               ${isDark ? "bg-purple-900/30 text-purple-400" : "bg-purple-100 text-purple-600"}`}>
               <IconBook />
@@ -175,7 +175,7 @@ export default function HelpPage({ theme }) {
         </div>
 
         {/* FAQs */}
-        <div className={`rounded-2xl border p-8 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+        <div className={`rounded-2xl border p-5 sm:p-8 ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
           <h2 className={`text-xl font-bold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
             Frequently Asked Questions
           </h2>
@@ -192,7 +192,7 @@ export default function HelpPage({ theme }) {
         </div>
 
         {/* Bottom CTA */}
-        <div className={`mt-8 rounded-2xl border p-8 text-center ${isDark ? "bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-800/30" : "bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200"}`}>
+        <div className={`mt-8 rounded-2xl border p-5 sm:p-8 text-center ${isDark ? "bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-800/30" : "bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200"}`}>
           <h3 className={`text-xl font-bold mb-3 ${isDark ? "text-white" : "text-slate-900"}`}>
             Contact Support
           </h3>
@@ -200,7 +200,7 @@ export default function HelpPage({ theme }) {
             Need more help? Reach out to our support team
           </p>
           <button className={`px-8 py-3 rounded-lg font-medium transition-colors cursor-pointer
-            ${isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}>
+            w-full sm:w-auto ${isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}>
             <a href="mailto:adityagupta20042003@gmail.com">Contact Support</a>
           </button>
         </div>

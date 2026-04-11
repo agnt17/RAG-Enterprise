@@ -55,7 +55,7 @@ export default function ServerErrorPage({ error }) {
   const mailtoLink = `mailto:${reportEmail}?subject=DocMind Server Error Report&body=Hi DocMind Team,%0D%0A%0D%0AI encountered a server error while using DocMind.%0D%0A%0D%0ATime: ${new Date().toISOString()}%0D%0APage: ${window.location.href}${encodeURIComponent(errorDetails)}%0D%0A%0D%0APlease look into this issue.%0D%0A%0D%0AThank you!`
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center px-6 ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className={`min-h-screen flex flex-col items-center justify-center px-6`}>
       {/* DocMind Logo */}
       <div className="flex items-center gap-2 mb-8">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
@@ -73,7 +73,7 @@ export default function ServerErrorPage({ error }) {
           500
         </div>
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className={`w-28 h-28 rounded-2xl ${isDark ? "bg-gray-900 border-gray-700" : "bg-white border-slate-300"} border-2 flex items-center justify-center shadow-lg`}>
+          <div className={`w-28 h-28 rounded-2xl ${isDark ? "bg-white/[0.06] border-white/[0.1]" : "bg-white/80 border-slate-200/50"} border backdrop-blur-md flex items-center justify-center shadow-lg`}>
             <div className={`${isDark ? "text-orange-500" : "text-orange-500"}`}>
               <IconServer />
             </div>
@@ -108,9 +108,9 @@ export default function ServerErrorPage({ error }) {
         <button
           onClick={handleRefresh}
           className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors cursor-pointer
-            ${isDark 
-              ? "bg-gray-800 hover:bg-gray-700 text-gray-300" 
-              : "bg-slate-200 hover:bg-slate-300 text-slate-700"
+            ${isDark
+              ? "bg-white/[0.08] hover:bg-white/[0.12] text-white/80 border border-white/[0.1]"
+              : "bg-white/70 hover:bg-white/90 text-slate-700 border border-slate-200/60"
             }`}
         >
           <IconRefresh />
@@ -126,7 +126,7 @@ export default function ServerErrorPage({ error }) {
       </div>
 
       {/* Report Section */}
-      <div className={`rounded-xl border p-5 max-w-md w-full ${isDark ? "bg-gray-900/50 border-gray-800" : "bg-white border-slate-200"}`}>
+      <div className={`rounded-xl border p-5 max-w-md w-full ${isDark ? "bg-white/[0.06] backdrop-blur-md border-white/[0.08]" : "bg-white/80 backdrop-blur-md border-slate-200/50"}`}>
         <h3 className={`text-sm font-semibold mb-2 ${isDark ? "text-gray-300" : "text-slate-700"}`}>
           Help Us Fix This Faster
         </h3>

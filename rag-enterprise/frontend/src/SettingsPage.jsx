@@ -340,39 +340,39 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
   // Show loading spinner while user data is being fetched
   if (!user) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+      <div className="min-h-screen flex items-center justify-center">
         <Spinner />
       </div>
     )
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className="min-h-screen">
       {/* Header */}
-      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
+      <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-black/20 backdrop-blur-xl border-white/[0.08]" : "bg-white/70 backdrop-blur-xl border-slate-200/50"}`}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-4">
           <button
             onClick={() => navigate("/")}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer
-              ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-slate-100 text-slate-600"}`}
+              ${isDark ? "hover:bg-white/[0.08] text-[#86868b]" : "hover:bg-white/60 text-slate-600"}`}
           >
             <IconArrowLeft />
           </button>
-          <h1 className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+          <h1 className={`text-xl sm:text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
             Settings
           </h1>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="space-y-8">
           {/* Profile Photo Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <h2 className={`text-lg font-semibold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
               Profile Photo
             </h2>
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
               <div className="relative">
                 {getProfileDisplay()}
                 <button
@@ -394,7 +394,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                 <p className={`text-sm mb-3 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
                   Upload a new profile photo. JPG, PNG, GIF or WebP. Max 5MB.
                 </p>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
@@ -408,7 +408,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                       onClick={handleRemovePhoto}
                       disabled={removingPhoto}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:opacity-50
-                        ${isDark ? "bg-gray-800 hover:bg-gray-700 text-gray-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}
+                        ${isDark ? "bg-white/[0.08] hover:bg-white/[0.12] text-[#f5f5f7]" : "bg-white/60 hover:bg-white/80 text-slate-700"}`}
                     >
                       {removingPhoto ? <ButtonLoader text="Removing..." /> : "Remove"}
                     </button>
@@ -424,13 +424,13 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           </div>
 
           {/* Current Plan Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
                 Current Plan
               </h2>
               <div className={`px-3 py-1 rounded-full text-xs font-semibold
-                ${currentPlan.color === "gray" ? (isDark ? "bg-gray-800 text-gray-300" : "bg-slate-100 text-slate-600") :
+                ${currentPlan.color === "gray" ? (isDark ? "bg-white/[0.08] text-[#86868b]" : "bg-slate-100/80 text-slate-600") :
                   currentPlan.color === "blue" ? "bg-blue-100 text-blue-700" :
                   currentPlan.color === "purple" ? "bg-purple-100 text-purple-700" :
                   "bg-amber-100 text-amber-700"
@@ -439,9 +439,9 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               </div>
             </div>
             
-            <div className={`flex items-start gap-4 p-4 rounded-xl ${isDark ? "bg-gray-800/50" : "bg-slate-50"}`}>
+            <div className={`flex items-start gap-4 p-4 rounded-xl ${isDark ? "bg-white/[0.04]" : "bg-white/40"}`}>
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center
-                ${currentPlan.color === "gray" ? (isDark ? "bg-gray-700 text-gray-400" : "bg-slate-200 text-slate-500") :
+                ${currentPlan.color === "gray" ? (isDark ? "bg-white/[0.1] text-[#86868b]" : "bg-slate-200/80 text-slate-500") :
                   currentPlan.color === "blue" ? "bg-blue-100 text-blue-600" :
                   currentPlan.color === "purple" ? "bg-purple-100 text-purple-600" :
                   "bg-amber-100 text-amber-600"
@@ -479,7 +479,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               onClick={() => navigate("/upgrade")}
               className={`mt-4 w-full py-3 rounded-lg font-medium transition-colors cursor-pointer
                 ${user?.plan === "enterprise" 
-                  ? (isDark ? "bg-gray-800 text-gray-400 cursor-not-allowed" : "bg-slate-100 text-slate-400 cursor-not-allowed")
+                  ? (isDark ? "bg-white/[0.06] text-[#9ca3af] cursor-not-allowed" : "bg-slate-100/80 text-slate-400 cursor-not-allowed")
                   : (isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white")
                 }`}
               disabled={user?.plan === "enterprise"}
@@ -503,7 +503,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           </div>
 
           {/* Usage Statistics Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <h2 className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
               Usage This Month
             </h2>
@@ -527,7 +527,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                       {usage.documents.used} / {usage.documents.limit}
                     </span>
                   </div>
-                  <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-gray-700" : "bg-slate-200"}`}>
+                  <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-white/[0.12]" : "bg-slate-200/80"}`}>
                     <div 
                       className={`h-full rounded-full transition-all ${
                         getUsagePercent(usage.documents.used, usage.documents.limit) > 90 
@@ -559,7 +559,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                       {usage.questions.used} / {usage.questions.limit}
                     </span>
                   </div>
-                  <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-gray-700" : "bg-slate-200"}`}>
+                  <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-white/[0.12]" : "bg-slate-200/80"}`}>
                     <div 
                       className={`h-full rounded-full transition-all ${
                         getUsagePercent(usage.questions.used, usage.questions.limit) > 90 
@@ -579,7 +579,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                 </div>
 
                 {/* File Size Limit Info */}
-                <div className={`flex items-center justify-between pt-4 border-t ${isDark ? "border-gray-800" : "border-slate-200"}`}>
+                <div className={`flex items-center justify-between pt-4 border-t ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`}>
                   <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>
                     Max file size
                   </span>
@@ -596,7 +596,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           </div>
 
           {/* Account Details Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <h2 className={`text-lg font-semibold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
               Account Details
             </h2>
@@ -613,8 +613,8 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                   onChange={handleInputChange}
                   className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                     ${isDark 
-                      ? "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
-                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"}`}
+                      ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
+                      : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                   placeholder="Enter your name"
                 />
               </div>
@@ -633,14 +633,14 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                   value={user?.email || ""}
                   disabled
                   className={`w-full px-4 py-2.5 rounded-lg border cursor-not-allowed
-                    ${isDark 
-                      ? "bg-gray-800/50 border-gray-700 text-gray-500" 
-                      : "bg-slate-100 border-slate-200 text-slate-500"}`}
+                    ${isDark
+                      ? "bg-white/[0.04] border-white/[0.08] text-[#9ca3af]"
+                      : "bg-white/30 border-slate-200/50 text-slate-500"}`}
                 />
               </div>
 
               {/* Password Change Section */}
-              <div className={`pt-4 border-t ${isDark ? "border-gray-800" : "border-slate-200"}`}>
+              <div className={`pt-4 border-t ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`}>
                 <p className={`text-sm font-medium mb-1 ${isDark ? "text-gray-300" : "text-slate-700"}`}>
                   {user?.has_password ? "Change Password" : "Set Password"}
                 </p>
@@ -663,8 +663,8 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                         onChange={handleInputChange}
                         className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                           ${isDark 
-                            ? "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
-                            : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"}`}
+                            ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
+                            : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                         placeholder="Enter current password"
                       />
                     </div>
@@ -681,8 +681,8 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                       onChange={handleInputChange}
                       className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                         ${isDark 
-                          ? "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
-                          : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"}`}
+                          ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
+                          : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                       placeholder="Enter new password"
                     />
                   </div>
@@ -698,8 +698,8 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                       onChange={handleInputChange}
                       className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                         ${isDark 
-                          ? "bg-gray-800 border-gray-700 text-slate-100 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
-                          : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"}`}
+                          ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
+                          : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                       placeholder="Confirm new password"
                     />
                   </div>
@@ -707,11 +707,11 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <button
                   type="submit"
                   disabled={saving}
-                  className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer
                     ${isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
                 >
                   {saving ? <ButtonLoader text="Saving..." /> : "Save Changes"}
@@ -719,8 +719,8 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer
-                    ${isDark ? "bg-gray-800 hover:bg-gray-700 text-gray-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer
+                    ${isDark ? "bg-white/[0.08] hover:bg-white/[0.12] text-[#f5f5f7]" : "bg-white/60 hover:bg-white/80 text-slate-700"}`}
                 >
                   Cancel
                 </button>
@@ -730,7 +730,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
 
           {/* Billing History Section */}
           {user?.plan !== "free" && (
-            <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+            <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
               <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-900"}`}>
                 <IconReceipt />
                 Billing History
@@ -749,8 +749,8 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                   {billingHistory.slice(0, 5).map((payment, idx) => (
                     <div 
                       key={idx}
-                      className={`flex items-center justify-between p-4 rounded-lg ${
-                        isDark ? "bg-gray-800/50" : "bg-slate-50"
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg ${
+                        isDark ? "bg-white/[0.04]" : "bg-white/40"
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -816,7 +816,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
 
           {/* Cancellation Section */}
           {user?.plan !== "free" && !user?.is_cancelled && (
-            <div className={`rounded-2xl border p-6 ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
+            <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
               <h2 className={`text-lg font-semibold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
                 Cancel Subscription
               </h2>
@@ -870,7 +870,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
       {/* Cancel Subscription Modal */}
       {showCancelModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className={`max-w-md w-full rounded-2xl p-6 ${isDark ? "bg-gray-900" : "bg-white"}`}>
+          <div className={`max-w-md w-full rounded-2xl p-5 sm:p-6 ${isDark ? "bg-black/80 backdrop-blur-2xl border border-white/[0.1]" : "bg-white/90 backdrop-blur-2xl border border-white/90"}`}>
             <div className="flex justify-between items-center mb-4">
               <h3 className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
                 Cancel Subscription?
@@ -878,7 +878,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               <button 
                 onClick={() => setShowCancelModal(false)}
                 className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                  isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-slate-100 text-slate-600"
+                  isDark ? "hover:bg-white/[0.08] text-[#86868b]" : "hover:bg-white/60 text-slate-600"
                 }`}
               >
                 <IconX />
@@ -907,13 +907,13 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               . After that, you'll be downgraded to Free.
             </p>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setShowCancelModal(false)}
                 className={`flex-1 py-2.5 rounded-lg font-medium transition-colors cursor-pointer
-                  ${isDark 
-                    ? "bg-gray-800 hover:bg-gray-700 text-gray-300" 
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  ${isDark
+                    ? "bg-white/[0.08] hover:bg-white/[0.12] text-[#f5f5f7]"
+                    : "bg-white/60 hover:bg-white/80 text-slate-700"
                   }`}
               >
                 Keep Subscription

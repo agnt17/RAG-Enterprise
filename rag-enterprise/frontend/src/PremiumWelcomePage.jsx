@@ -356,7 +356,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
         <span className="text-white text-2xl">✨</span>
       </div>
       
-      <h1 className={`text-4xl font-bold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
+      <h1 className={`text-3xl sm:text-4xl font-bold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
         Welcome to {planName}! 🎉
       </h1>
       
@@ -375,7 +375,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
 
   const renderFeaturesStep = () => (
     <div className="py-6">
-      <h2 className={`text-2xl font-bold text-center mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+      <h2 className={`text-xl sm:text-2xl font-bold text-center mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
         Your {planName} Features
       </h2>
       <p className={`text-center mb-8 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
@@ -409,7 +409,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
 
   const renderProfessionStep = () => (
     <div className="py-6">
-      <h2 className={`text-2xl font-bold text-center mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+      <h2 className={`text-xl sm:text-2xl font-bold text-center mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
         Tell Us About Your Work
       </h2>
       <p className={`text-center mb-8 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
@@ -419,7 +419,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
         <button
           onClick={() => setSelectedProfession("law_firm")}
-          className={`p-6 rounded-xl border-2 transition-all text-left cursor-pointer
+          className={`p-5 sm:p-6 rounded-xl border-2 transition-all text-left cursor-pointer
             ${selectedProfession === "law_firm"
               ? isDark
                 ? "border-blue-500 bg-blue-900/20"
@@ -446,7 +446,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
 
         <button
           onClick={() => setSelectedProfession("ca_firm")}
-          className={`p-6 rounded-xl border-2 transition-all text-left cursor-pointer
+          className={`p-5 sm:p-6 rounded-xl border-2 transition-all text-left cursor-pointer
             ${selectedProfession === "ca_firm"
               ? isDark
                 ? "border-blue-500 bg-blue-900/20"
@@ -473,7 +473,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
 
         <button
           onClick={() => setSelectedProfession("other")}
-          className={`p-6 rounded-xl border-2 transition-all text-left cursor-pointer
+          className={`p-5 sm:p-6 rounded-xl border-2 transition-all text-left cursor-pointer
             ${selectedProfession === "other"
               ? isDark
                 ? "border-blue-500 bg-blue-900/20"
@@ -503,7 +503,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
 
   const renderTipsStep = () => (
     <div className="py-6">
-      <h2 className={`text-2xl font-bold text-center mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+      <h2 className={`text-xl sm:text-2xl font-bold text-center mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
         Prompting Tips for {selectedProfession === "law_firm" ? "Legal" : selectedProfession === "ca_firm" ? "Finance" : "Business"} Documents
       </h2>
       <p className={`text-center mb-8 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
@@ -551,11 +551,11 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
   ]
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-950" : "bg-slate-100"}`}>
+    <div className="min-h-screen">
       {/* Progress bar */}
       <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-3">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>
               Step {currentStep + 1} of {totalSteps}
             </span>
@@ -576,17 +576,20 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {steps[currentStep].render()}
       </div>
 
       {/* Navigation */}
       <div className={`sticky bottom-0 border-t ${isDark ? "bg-gray-900 border-gray-800" : "bg-white border-slate-200"}`}>
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div
+          className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
           <button
             onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
             disabled={currentStep === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors cursor-pointer
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors cursor-pointer text-sm sm:text-base
               ${currentStep === 0
                 ? isDark ? "text-gray-600 cursor-not-allowed" : "text-slate-400 cursor-not-allowed"
                 : isDark ? "text-gray-300 hover:bg-gray-800" : "text-slate-700 hover:bg-slate-100"
@@ -601,7 +604,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
             <button
               onClick={handleSaveProfession}
               disabled={!selectedProfession || saving}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-colors cursor-pointer
+              className={`flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg font-medium transition-colors cursor-pointer text-sm sm:text-base
                 ${!selectedProfession || saving
                   ? isDark ? "bg-gray-800 text-gray-500 cursor-not-allowed" : "bg-slate-200 text-slate-400 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700 text-white"
@@ -618,7 +621,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
             // Finish button
             <button
               onClick={handleFinish}
-              className="flex items-center gap-2 px-6 py-2 rounded-lg font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transition-colors cursor-pointer text-sm sm:text-base"
             >
               <span>Start Using DocMind</span>
               <IconRocket />
@@ -627,7 +630,7 @@ export default function PremiumWelcomePage({ theme, user: initialUser }) {
             // Next button
             <button
               onClick={() => setCurrentStep(Math.min(totalSteps - 1, currentStep + 1))}
-              className="flex items-center gap-2 px-6 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer text-sm sm:text-base"
             >
               <span>Next</span>
               <IconChevronRight />
