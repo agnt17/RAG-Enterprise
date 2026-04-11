@@ -1,1 +1,71 @@
 @import "tailwindcss";
+
+/* ── Font ─────────────────────────────────────────────────── */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Global rendering ─────────────────────────────────────── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+/* ── Slim themed scrollbar ────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.25);
+  border-radius: 99px;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.45); }
+
+/* ── Thinking dots — smooth pulse, not bounce ─────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; transform: scale(0.75); }
+  50%       { opacity: 1;   transform: scale(1); }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+.animate-pulse-dot-2 { animation-delay: 0.2s; }
+.animate-pulse-dot-3 { animation-delay: 0.4s; }
+
+/* ── Skeleton shimmer ─────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400% 0; }
+  100% { background-position:  400% 0; }
+}
+/* Light: indigo translucent shimmer over light mesh */
+.skeleton-light {
+  background: linear-gradient(
+    90deg,
+    rgba(99, 102, 241, 0.05) 25%,
+    rgba(99, 102, 241, 0.14) 50%,
+    rgba(99, 102, 241, 0.05) 75%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+/* Dark: white translucent shimmer over dark mesh */
+.skeleton-dark {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.13) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ── Input focus glow ─────────────────────────────────────── */
+.input-glow-light:focus {
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12);
+}
+.input-glow-dark:focus {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+}
