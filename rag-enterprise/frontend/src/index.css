@@ -13,6 +13,16 @@ html {
   scroll-behavior: smooth;
 }
 
+body {
+  margin: 0;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
 /* ── Slim themed scrollbar ────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -68,4 +78,9 @@ html {
 }
 .input-glow-dark:focus {
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+}
+
+/* Ensure all enabled buttons show pointer cursor */
+button:not(:disabled) {
+  cursor: pointer;
 }

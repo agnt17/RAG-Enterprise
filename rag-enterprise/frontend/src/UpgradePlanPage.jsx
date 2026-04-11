@@ -151,7 +151,7 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
   return (
     <div 
       onClick={handleClick}
-      className={`rounded-2xl border p-8 relative transition-all ${
+      className={`rounded-2xl border p-6 sm:p-8 relative transition-all ${
         isDisabled
           ? isDark
             ? "border-white/[0.06] bg-white/[0.03] opacity-60 cursor-not-allowed"
@@ -187,7 +187,7 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
       )}
 
       <div className="text-center mb-8">
-        <h3 className={`text-2xl font-bold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
+        <h3 className={`text-xl sm:text-2xl font-bold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
           {titles[plan]}
         </h3>
         <p className={`text-sm mb-6 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
@@ -196,7 +196,7 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
         <div className="mb-2">
           {price !== null ? (
             <>
-              <span className={`text-4xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+              <span className={`text-3xl sm:text-4xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
                 ₹{price.toLocaleString('en-IN')}
               </span>
               {plan !== "free" && (
@@ -206,7 +206,7 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
               )}
             </>
           ) : (
-            <span className={`text-4xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+            <span className={`text-3xl sm:text-4xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
               Custom
             </span>
           )}
@@ -227,7 +227,7 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
         className={`w-full py-3 rounded-lg font-medium mb-8 transition-colors
         ${isDisabled
           ? isDark
-            ? "bg-white/[0.06] text-[#48484a] cursor-not-allowed"
+            ? "bg-white/[0.06] text-[#9ca3af] cursor-not-allowed"
             : "bg-slate-200/60 text-slate-400 cursor-not-allowed"
           : isCurrentPlan
             ? isDark
@@ -262,7 +262,7 @@ function PricingCard({ plan, isDark, isPopular, isSelected, onSelect, currentPla
           <div key={index} className="flex items-start gap-3">
             <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center
               ${isDisabled 
-                ? isDark ? "bg-white/[0.06] text-[#48484a]" : "bg-slate-200/60 text-slate-400"
+                ? isDark ? "bg-white/[0.06] text-[#9ca3af]" : "bg-slate-200/60 text-slate-400"
                 : isDark ? "bg-green-900/30 text-green-400" : "bg-green-100 text-green-600"
               }`}>
               <IconCheck />
@@ -316,16 +316,16 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
   const fromLabel = isLowerTier ? "Switching from" : isSamePlan ? "Current plan" : "Upgrading from"
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       
       {/* Modal */}
-      <div className={`relative w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden ${
+      <div className={`relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${
         isDark ? "bg-black/80 backdrop-blur-2xl border border-white/[0.1]" : "bg-white/90 backdrop-blur-2xl border border-white/90"
       }`}>
         {/* Header */}
-        <div className={`px-6 py-4 border-b ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`}>
+        <div className={`px-4 sm:px-6 py-4 border-b ${isDark ? "border-white/[0.08]" : "border-slate-200/60"}`}>
           <div className="flex items-center justify-between">
             <h2 className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
               Payment Summary
@@ -341,7 +341,7 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
         </div>
         
         {/* Content */}
-        <div className="px-6 py-5">
+        <div className="px-4 sm:px-6 py-5">
           {/* Plan Change Summary */}
           <div className={`rounded-xl p-4 mb-5 ${isDark ? "bg-white/[0.04]" : "bg-white/50"}`}>
             <div className="flex items-center justify-between mb-2">
@@ -510,8 +510,8 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
         </div>
         
         {/* Footer */}
-        <div className={`px-6 py-4 border-t ${isDark ? "border-white/[0.08] bg-white/[0.04]" : "border-slate-100/80 bg-white/40"}`}>
-          <div className="flex gap-3">
+        <div className={`px-4 sm:px-6 py-4 border-t ${isDark ? "border-white/[0.08] bg-white/[0.04]" : "border-slate-100/80 bg-white/40"}`}>
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={onClose}
               className={`flex-1 py-3 rounded-xl font-medium transition-colors cursor-pointer
@@ -842,7 +842,7 @@ export default function UpgradePlanPage({ theme, user }) {
     <div className="min-h-screen">
       {/* Header */}
       <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-black/20 backdrop-blur-xl border-white/[0.08]" : "bg-white/70 backdrop-blur-xl border-slate-200/50"}`}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-4">
           <button
             onClick={() => navigate("/")}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer
@@ -850,14 +850,14 @@ export default function UpgradePlanPage({ theme, user }) {
           >
             <IconArrowLeft />
           </button>
-          <h1 className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+          <h1 className={`text-xl sm:text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
             Upgrade Plan
           </h1>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Hero Section */}
         <div className="mb-8 text-center">
           <p className={`text-lg mb-4 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
@@ -892,10 +892,10 @@ export default function UpgradePlanPage({ theme, user }) {
 
         {/* Billing Cycle Toggle */}
         <div className="flex justify-center mb-10">
-          <div className={`inline-flex items-center p-1 rounded-xl ${isDark ? "bg-white/[0.08]" : "bg-slate-200/80"}`}>
+          <div className={`flex w-full max-w-sm sm:w-auto sm:inline-flex flex-col sm:flex-row items-stretch sm:items-center gap-1 sm:gap-0 p-1 rounded-xl ${isDark ? "bg-white/[0.08]" : "bg-slate-200/80"}`}>
             <button
               onClick={() => setBillingCycle("monthly")}
-              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              className={`px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                 billingCycle === "monthly"
                   ? isDark
                     ? "bg-blue-600 text-white shadow-lg"
@@ -909,7 +909,7 @@ export default function UpgradePlanPage({ theme, user }) {
             </button>
             <button
               onClick={() => setBillingCycle("yearly")}
-              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer flex items-center gap-2 ${
+              className={`px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 billingCycle === "yearly"
                   ? isDark
                     ? "bg-blue-600 text-white shadow-lg"
@@ -934,7 +934,7 @@ export default function UpgradePlanPage({ theme, user }) {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 sm:gap-8 mb-8">
           <PricingCard 
             plan="free" 
             isDark={isDark} 
@@ -988,7 +988,7 @@ export default function UpgradePlanPage({ theme, user }) {
               <IconInfo />
               Your Current Usage
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {usageStats.documents && (
                 <div>
                   <div className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -1027,7 +1027,7 @@ export default function UpgradePlanPage({ theme, user }) {
               <IconTag />
               Have a coupon code?
             </h3>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="text"
                 value={couponCode}
@@ -1035,7 +1035,7 @@ export default function UpgradePlanPage({ theme, user }) {
                 placeholder="Enter coupon code"
                 className={`flex-1 px-4 py-2.5 rounded-lg border transition-colors
                   ${isDark
-                    ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#48484a] focus:border-white/[0.2]"
+                    ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
                     : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"
                   } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
               />
@@ -1076,7 +1076,7 @@ export default function UpgradePlanPage({ theme, user }) {
             <button
               onClick={handleUpgradeClick}
               disabled={processing || fetchingBreakdown}
-              className={`px-12 py-4 rounded-xl font-bold text-lg transition-all shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
+              className={`w-full sm:w-auto px-6 sm:px-12 py-4 rounded-xl font-bold text-base sm:text-lg transition-all shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
                 ${isDark
                   ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-blue-500/25" 
                   : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-blue-500/25"
@@ -1101,7 +1101,7 @@ export default function UpgradePlanPage({ theme, user }) {
 
         {/* Money-back Guarantee Badge */}
         <div className={`flex justify-center mb-12`}>
-          <div className={`inline-flex items-center gap-3 px-6 py-3 rounded-full ${
+          <div className={`inline-flex flex-col sm:flex-row items-center gap-1 sm:gap-3 px-5 sm:px-6 py-3 rounded-full text-center sm:text-left ${
             isDark ? "bg-green-900/20 border border-green-700/30" : "bg-green-50 border border-green-200"
           }`}>
             <IconShield />
@@ -1117,7 +1117,7 @@ export default function UpgradePlanPage({ theme, user }) {
         </div>
 
         {/* Feature Comparison Table */}
-        <div className={`rounded-2xl border p-8 mb-8 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+        <div className={`rounded-2xl border p-5 sm:p-8 mb-8 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
           <h2 className={`text-xl font-bold mb-6 text-center ${isDark ? "text-white" : "text-slate-900"}`}>
             Compare All Features
           </h2>
@@ -1174,7 +1174,7 @@ export default function UpgradePlanPage({ theme, user }) {
         </div>
 
         {/* FAQ Section */}
-        <div className={`rounded-2xl border p-8 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+        <div className={`rounded-2xl border p-5 sm:p-8 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
           <h2 className={`text-xl font-bold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
             Frequently Asked Questions
           </h2>

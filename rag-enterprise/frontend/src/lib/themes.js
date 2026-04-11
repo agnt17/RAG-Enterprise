@@ -1,55 +1,55 @@
 export const themes = {
   light: {
-    // Layout — AppRouter GlobalBackground provides base color, panels use visible glass
-    page:    "bg-transparent",
-    sidebar: "bg-white/85 backdrop-blur-2xl border-slate-200/50 shadow-[0_8px_32px_rgba(99,102,241,0.08)]",
-    main:    "bg-transparent",
-    card:    "bg-white/80 backdrop-blur-xl border-slate-200/50",
+    // Layout — solid backgrounds, no glass dependency on AppRouter
+    page:    "bg-slate-50",
+    sidebar: "bg-white border-slate-200",
+    main:    "bg-slate-50",
+    card:    "bg-white border-slate-200",
 
     // Typography
     title:   "text-[#1d1d1f]",
     label:   "text-[#1d1d1f]",
-    subtext: "text-[#86868b]",
-    muted:   "text-[#86868b]",
+    subtext: "text-[#94a3b8]",
+    muted:   "text-[#94a3b8]",
 
     // Messages
     msgUser:    "bg-[#0071e3] text-white rounded-tr-sm shadow-sm",
-    msgAi:      "bg-white/85 backdrop-blur-sm border border-slate-200/50 text-[#1d1d1f] rounded-tl-sm shadow-sm",
-    msgSystem:  "bg-indigo-50/80 border border-indigo-100/80 text-indigo-600 w-full",
+    msgAi:      "bg-white border border-slate-200 text-[#1d1d1f] rounded-tl-sm shadow-sm",
+    msgSystem:  "bg-indigo-50 border border-indigo-100 text-indigo-600 w-full",
     avatarUser: "bg-[#0071e3] text-white",
-    avatarAi:   "bg-white/80 text-[#86868b] border border-slate-200/60",
+    avatarAi:   "bg-white text-[#86868b] border border-slate-200",
     thinkDot:   "text-[#86868b]",
 
     // UI elements
-    badge:          "bg-slate-100/80 text-[#86868b]",
-    divider:        "border-slate-200/60",
+    badge:          "bg-slate-100 text-[#86868b]",
+    divider:        "border-slate-200",
     sendBtn:        "bg-[#0071e3] hover:bg-[#0077ED] text-white",
-    docRow:         "hover:bg-white/60 text-slate-600",
-    docRowActive:   "bg-indigo-50/80 text-[#0071e3] border-l-2 border-[#0071e3]",
-    docAction:      "text-slate-400 hover:text-slate-700 hover:bg-white/70",
-    docActionDel:   "text-slate-400 hover:text-red-600 hover:bg-red-50/80",
-    uploadIdle:     "border-[#0071e3]/25 bg-[#0071e3]/5 hover:bg-[#0071e3]/10 hover:border-[#0071e3]/40 text-[#0071e3]",
+    docRow:         "hover:bg-slate-100 text-slate-600",
+    docRowActive:   "bg-indigo-50 text-[#0071e3] border-l-2 border-[#0071e3]",
+    docAction:      "text-slate-400 hover:text-slate-700 hover:bg-slate-100",
+    docActionDel:   "text-slate-400 hover:text-red-600 hover:bg-red-50",
+    uploadIdle:     "border-[#0071e3]/30 bg-[#0071e3]/5 hover:bg-[#0071e3]/10 hover:border-[#0071e3]/50 text-[#0071e3]",
     iconStroke:     "#86868b",
-    fileIconBg:     "bg-white/80",
-    emptyIconBg:    "bg-white/80",
-    dropdownBg:     "bg-white/90 backdrop-blur-2xl border-slate-200/60",
-    citationDivider:"border-slate-200/60",
-    inputBg:        "bg-white/75 backdrop-blur-md border-slate-200/50 text-[#1d1d1f] placeholder-[#86868b] focus:border-[#0071e3]/40 focus:bg-white/90",
-    quickAction:    "border-slate-200/60 bg-white/60 text-slate-600 hover:bg-[#0071e3]/5 hover:border-[#0071e3]/30 hover:text-[#0071e3]",
+    fileIconBg:     "bg-slate-100",
+    emptyIconBg:    "bg-slate-100",
+    dropdownBg:     "bg-white border-slate-200",
+    citationDivider:"border-slate-200",
+    inputBg:        "bg-white border-slate-200 text-[#1d1d1f] placeholder-[#86868b] focus:border-[#0071e3]/50 focus:bg-white",
+    quickAction:    "border-slate-200 bg-white text-slate-600 hover:bg-[#0071e3]/5 hover:border-[#0071e3]/30 hover:text-[#0071e3]",
 
-    // Shadows (elevation system)
-    headerShadow: "shadow-[0_1px_0_rgba(0,0,0,0.06)]",
-    cardShadow:   "shadow-[0_4px_24px_rgba(99,102,241,0.06)]",
-    modalShadow:  "shadow-[0_16px_48px_rgba(99,102,241,0.12)]",
-    sidebarShadow:"shadow-[0_8px_32px_rgba(99,102,241,0.08)]",
+    // Shadows
+    headerShadow: "shadow-[0_1px_0_rgba(0,0,0,0.08)]",
+    cardShadow:   "shadow-sm",
+    modalShadow:  "shadow-xl",
+    sidebarShadow:"shadow-[1px_0_0_rgba(0,0,0,0.06)]",
   },
 
   dark: {
-    // Layout — AppRouter GlobalBackground provides base color
-    page:    "bg-transparent",
-    sidebar: "bg-white/[0.04] backdrop-blur-2xl border-white/[0.08]",
-    main:    "bg-transparent",
-    card:    "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]",
+    // Layout
+    page:    "bg-[#09090b]",
+    sidebar: "bg-[#111113] border-white/8",
+    main:    "bg-[#09090b]",
+    card:    "bg-[#111113] border-white/8",
 
     // Typography
     title:   "text-[#f5f5f7]",
@@ -59,33 +59,33 @@ export const themes = {
 
     // Messages
     msgUser:    "bg-[#0a84ff] text-white rounded-tr-sm shadow-sm",
-    msgAi:      "bg-white/[0.05] backdrop-blur-md border border-white/[0.08] text-[#f5f5f7] rounded-tl-sm",
+    msgAi:      "bg-[#1c1c1e] border border-white/8 text-[#f5f5f7] rounded-tl-sm",
     msgSystem:  "bg-blue-900/20 border border-blue-800/30 text-blue-400 w-full",
     avatarUser: "bg-[#0a84ff] text-white",
-    avatarAi:   "bg-white/[0.08] backdrop-blur-sm text-[#86868b] border border-white/[0.1]",
-    thinkDot:   "text-[#48484a]",
+    avatarAi:   "bg-[#1c1c1e] text-[#cbd5e1] border border-white/8",
+    thinkDot:   "text-[#9ca3af]",
 
     // UI elements
-    badge:          "bg-white/[0.08] text-[#86868b]",
-    divider:        "border-white/[0.08]",
+    badge:          "bg-white/8 text-[#cbd5e1]",
+    divider:        "border-white/8",
     sendBtn:        "bg-[#0a84ff] hover:bg-[#409cff] text-white",
-    docRow:         "hover:bg-white/[0.06] text-[#86868b]",
+    docRow:         "hover:bg-white/6 text-[#cbd5e1]",
     docRowActive:   "bg-[#0a84ff]/10 text-[#0a84ff] border-l-2 border-[#0a84ff]",
-    docAction:      "text-[#48484a] hover:text-[#f5f5f7] hover:bg-white/[0.08]",
-    docActionDel:   "text-[#48484a] hover:text-red-400 hover:bg-red-900/20",
+    docAction:      "text-[#d1d5db] hover:text-white hover:bg-white/10",
+    docActionDel:   "text-[#d1d5db] hover:text-red-300 hover:bg-red-900/30",
     uploadIdle:     "border-[#0a84ff]/30 bg-[#0a84ff]/8 hover:bg-[#0a84ff]/14 hover:border-[#0a84ff]/50 text-[#0a84ff]",
-    iconStroke:     "#48484a",
-    fileIconBg:     "bg-white/[0.08]",
-    emptyIconBg:    "bg-white/[0.06]",
-    dropdownBg:     "bg-white/[0.08] backdrop-blur-2xl border-white/[0.12]",
-    citationDivider:"border-white/[0.08]",
-    inputBg:        "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#48484a] focus:border-white/[0.2]",
-    quickAction:    "border-white/[0.08] bg-white/[0.04] text-[#86868b] hover:bg-[#0a84ff]/10 hover:border-[#0a84ff]/30 hover:text-[#0a84ff]",
+    iconStroke:     "#9ca3af",
+    fileIconBg:     "bg-white/8",
+    emptyIconBg:    "bg-white/6",
+    dropdownBg:     "bg-[#1c1c1e] border-white/10",
+    citationDivider:"border-white/8",
+    inputBg:        "bg-white/6 border-white/10 text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/20",
+    quickAction:    "border-white/8 bg-white/4 text-[#cbd5e1] hover:bg-[#0a84ff]/10 hover:border-[#0a84ff]/30 hover:text-[#0a84ff]",
 
-    // Shadows (elevation system)
+    // Shadows
     headerShadow: "shadow-[0_1px_0_rgba(255,255,255,0.04)]",
-    cardShadow:   "shadow-[0_4px_24px_rgba(0,0,0,0.3)]",
-    modalShadow:  "shadow-[0_16px_48px_rgba(0,0,0,0.5)]",
+    cardShadow:   "shadow-[0_4px_24px_rgba(0,0,0,0.4)]",
+    modalShadow:  "shadow-[0_16px_48px_rgba(0,0,0,0.6)]",
     sidebarShadow:"shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
   },
 }

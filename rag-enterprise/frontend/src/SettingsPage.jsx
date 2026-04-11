@@ -350,7 +350,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
     <div className="min-h-screen">
       {/* Header */}
       <div className={`sticky top-0 z-10 border-b ${isDark ? "bg-black/20 backdrop-blur-xl border-white/[0.08]" : "bg-white/70 backdrop-blur-xl border-slate-200/50"}`}>
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-4">
           <button
             onClick={() => navigate("/")}
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors cursor-pointer
@@ -358,21 +358,21 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           >
             <IconArrowLeft />
           </button>
-          <h1 className={`text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+          <h1 className={`text-xl sm:text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
             Settings
           </h1>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="space-y-8">
           {/* Profile Photo Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <h2 className={`text-lg font-semibold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
               Profile Photo
             </h2>
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
               <div className="relative">
                 {getProfileDisplay()}
                 <button
@@ -394,7 +394,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                 <p className={`text-sm mb-3 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
                   Upload a new profile photo. JPG, PNG, GIF or WebP. Max 5MB.
                 </p>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
@@ -424,7 +424,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           </div>
 
           {/* Current Plan Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
                 Current Plan
@@ -479,7 +479,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               onClick={() => navigate("/upgrade")}
               className={`mt-4 w-full py-3 rounded-lg font-medium transition-colors cursor-pointer
                 ${user?.plan === "enterprise" 
-                  ? (isDark ? "bg-white/[0.06] text-[#48484a] cursor-not-allowed" : "bg-slate-100/80 text-slate-400 cursor-not-allowed")
+                  ? (isDark ? "bg-white/[0.06] text-[#9ca3af] cursor-not-allowed" : "bg-slate-100/80 text-slate-400 cursor-not-allowed")
                   : (isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white")
                 }`}
               disabled={user?.plan === "enterprise"}
@@ -503,7 +503,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           </div>
 
           {/* Usage Statistics Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <h2 className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
               Usage This Month
             </h2>
@@ -596,7 +596,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           </div>
 
           {/* Account Details Section */}
-          <div className={`rounded-2xl border p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+          <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <h2 className={`text-lg font-semibold mb-6 ${isDark ? "text-white" : "text-slate-900"}`}>
               Account Details
             </h2>
@@ -613,7 +613,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                   onChange={handleInputChange}
                   className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                     ${isDark 
-                      ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#48484a] focus:border-white/[0.2]"
+                      ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
                       : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                   placeholder="Enter your name"
                 />
@@ -634,7 +634,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                   disabled
                   className={`w-full px-4 py-2.5 rounded-lg border cursor-not-allowed
                     ${isDark
-                      ? "bg-white/[0.04] border-white/[0.08] text-[#48484a]"
+                      ? "bg-white/[0.04] border-white/[0.08] text-[#9ca3af]"
                       : "bg-white/30 border-slate-200/50 text-slate-500"}`}
                 />
               </div>
@@ -663,7 +663,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                         onChange={handleInputChange}
                         className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                           ${isDark 
-                            ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#48484a] focus:border-white/[0.2]"
+                            ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
                             : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                         placeholder="Enter current password"
                       />
@@ -681,7 +681,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                       onChange={handleInputChange}
                       className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                         ${isDark 
-                          ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#48484a] focus:border-white/[0.2]"
+                          ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
                           : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                       placeholder="Enter new password"
                     />
@@ -698,7 +698,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                       onChange={handleInputChange}
                       className={`w-full px-4 py-2.5 rounded-lg border transition-colors
                         ${isDark 
-                          ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#48484a] focus:border-white/[0.2]"
+                          ? "bg-white/[0.06] backdrop-blur-md border-white/[0.1] text-[#f5f5f7] placeholder-[#9ca3af] focus:border-white/[0.2]"
                           : "bg-white/60 backdrop-blur-md border-slate-200/50 text-slate-900 placeholder-slate-400 focus:border-[#0071e3]/40"}`}
                       placeholder="Confirm new password"
                     />
@@ -707,11 +707,11 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <button
                   type="submit"
                   disabled={saving}
-                  className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer
                     ${isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
                 >
                   {saving ? <ButtonLoader text="Saving..." /> : "Save Changes"}
@@ -719,7 +719,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer
                     ${isDark ? "bg-white/[0.08] hover:bg-white/[0.12] text-[#f5f5f7]" : "bg-white/60 hover:bg-white/80 text-slate-700"}`}
                 >
                   Cancel
@@ -730,7 +730,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
 
           {/* Billing History Section */}
           {user?.plan !== "free" && (
-            <div className={`rounded-2xl border p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+            <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
               <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${isDark ? "text-white" : "text-slate-900"}`}>
                 <IconReceipt />
                 Billing History
@@ -749,7 +749,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                   {billingHistory.slice(0, 5).map((payment, idx) => (
                     <div 
                       key={idx}
-                      className={`flex items-center justify-between p-4 rounded-lg ${
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg ${
                         isDark ? "bg-white/[0.04]" : "bg-white/40"
                       }`}
                     >
@@ -816,7 +816,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
 
           {/* Cancellation Section */}
           {user?.plan !== "free" && !user?.is_cancelled && (
-            <div className={`rounded-2xl border p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
+            <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
               <h2 className={`text-lg font-semibold mb-2 ${isDark ? "text-white" : "text-slate-900"}`}>
                 Cancel Subscription
               </h2>
@@ -870,7 +870,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
       {/* Cancel Subscription Modal */}
       {showCancelModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className={`max-w-md w-full rounded-2xl p-6 ${isDark ? "bg-black/80 backdrop-blur-2xl border border-white/[0.1]" : "bg-white/90 backdrop-blur-2xl border border-white/90"}`}>
+          <div className={`max-w-md w-full rounded-2xl p-5 sm:p-6 ${isDark ? "bg-black/80 backdrop-blur-2xl border border-white/[0.1]" : "bg-white/90 backdrop-blur-2xl border border-white/90"}`}>
             <div className="flex justify-between items-center mb-4">
               <h3 className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
                 Cancel Subscription?
@@ -907,7 +907,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
               . After that, you'll be downgraded to Free.
             </p>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setShowCancelModal(false)}
                 className={`flex-1 py-2.5 rounded-lg font-medium transition-colors cursor-pointer

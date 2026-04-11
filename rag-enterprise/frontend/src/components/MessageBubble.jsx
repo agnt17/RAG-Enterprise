@@ -9,7 +9,7 @@ export default function MessageBubble({ msg, user, resolvedTheme, t, onSourceCli
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 280, damping: 24 }}
-      className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+      className={`flex gap-2.5 sm:gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
     >
       {/* Avatar */}
       {msg.role !== "system" && (
@@ -20,7 +20,7 @@ export default function MessageBubble({ msg, user, resolvedTheme, t, onSourceCli
       )}
 
       {/* Bubble */}
-      <div className={msg.role === "system" ? "w-full" : "max-w-[80%]"}>
+      <div className={msg.role === "system" ? "w-full" : "max-w-[88%] sm:max-w-[80%]"}>
         <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed
           ${msg.role === "user"   ? t.msgUser :
             msg.role === "system" ? t.msgSystem :

@@ -3,7 +3,6 @@ import axios from "axios"
 import { motion, AnimatePresence } from "framer-motion"
 import { FileText } from "lucide-react"
 import AuthPage from "./AuthPage"
-import MeshBackground from "./MeshBackground"
 import { ToastContainer, toast } from "./Toast"
 
 import { API } from "./lib/api"
@@ -292,8 +291,6 @@ export default function App() {
   // ── Render ───────────────────────────────────────────────
   return (
     <>
-      <MeshBackground resolvedTheme={resolvedTheme} />
-
       <AnimatePresence mode="wait">
         {/* Boot screen */}
         {appLoading && (
@@ -353,7 +350,7 @@ export default function App() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-            className={`h-screen flex overflow-hidden ${t.page} transition-colors duration-300`}
+            className={`h-[100dvh] flex overflow-hidden ${t.page} transition-colors duration-300`}
           >
             <Sidebar
               sidebarOpen={sidebarOpen}
@@ -400,7 +397,10 @@ export default function App() {
               />
 
               {/* Input bar */}
-              <div className={`shrink-0 border-t ${t.divider} px-4 py-3`}>
+              <div
+                className={`shrink-0 border-t ${t.divider} px-3 sm:px-4 pt-3`}
+                style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+              >
                 <QuickActions
                   user={user}
                   uploadedFile={uploadedFile}
