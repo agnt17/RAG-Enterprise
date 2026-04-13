@@ -52,8 +52,11 @@ export default function App() {
   const resolvedTheme = themeMode === "system" ? (systemIsDark ? "dark" : "light") : themeMode
   const t = themes[resolvedTheme]
 
-  // Persist theme
-  useEffect(() => { localStorage.setItem("theme", themeMode) }, [themeMode])
+  // Persist theme and notify router-level listeners for instant cross-route sync.
+  useEffect(() => {
+    localStorage.setItem("theme", themeMode)
+    window.dispatchEvent(new CustomEvent("docmind-theme-change", { detail: { themeMode } }))
+  }, [themeMode])
 
   // Sidebar responsive
   useEffect(() => {
@@ -349,7 +352,7 @@ export default function App() {
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.35, ease: [0.4, 0, 1, 1] }}
           >
-            <AuthPage onLogin={handleLogin} />
+            <AuthPage onLogin={handleLogin} resolvedTheme={resolvedTheme} />
           </motion.div>
         )}
 

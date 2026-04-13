@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Settings, HelpCircle, PlusCircle, LogOut, Sun, Moon, Monitor, Check, ChevronRight } from "lucide-react"
 import { btnSubtle, ease } from "./lib/animations"
 
-export default function ProfileDropdown({ user, onLogout, theme, themeMode, setThemeMode }) {
+export default function ProfileDropdown({ user, onLogout, resolvedTheme = "dark", themeMode, setThemeMode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [themePos, setThemePos] = useState({ top: 0, left: 0 })
@@ -58,7 +58,7 @@ export default function ProfileDropdown({ user, onLogout, theme, themeMode, setT
   const go = (path) => { setIsOpen(false); setShowThemeMenu(false); navigate(path) }
   const logout = () => { setIsOpen(false); setShowThemeMenu(false); onLogout(); navigate("/") }
 
-  const isDark = theme === "dark"
+  const isDark = resolvedTheme === "dark"
 
   const themeOptions = [
     { key: "light",  label: "Light",  icon: <Sun     size={14} /> },
@@ -185,7 +185,7 @@ export default function ProfileDropdown({ user, onLogout, theme, themeMode, setT
           {themeOptions.map(({ key, label, icon }) => (
             <button
               key={key}
-              onClick={() => { setThemeMode(key); setShowThemeMenu(false) }}
+              onClick={() => { setThemeMode(key); setShowThemeMenu(false); setIsOpen(false) }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors duration-100 cursor-pointer
                 ${themeMode === key
                   ? isDark ? "bg-[#0a84ff]/15 text-[#0a84ff]" : "bg-[#0071e3]/8 text-[#0071e3]"

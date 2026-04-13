@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { FileText, X, Info } from "lucide-react"
 import { overlayVariants, modalVariants, btnIcon, btnSubtle, staggerContainer, staggerItem } from "../lib/animations"
 
-export default function SourceModal({ sourceModal, resolvedTheme, onClose }) {
+export default function SourceModal({ sourceModal, resolvedTheme = "dark", onClose }) {
   const isDark = resolvedTheme === "dark"
 
   return (

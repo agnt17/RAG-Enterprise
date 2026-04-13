@@ -539,9 +539,9 @@ function PriceBreakdownModal({ isOpen, onClose, breakdown, selectedPlan, billing
   )
 }
 
-export default function UpgradePlanPage({ theme, user }) {
+export default function UpgradePlanPage({ resolvedTheme = "dark", user }) {
   const navigate = useNavigate()
-  const isDark = theme === "dark"
+  const isDark = resolvedTheme === "dark"
   const token = localStorage.getItem("token")
 
   const currentPlan = user?.plan || "free"

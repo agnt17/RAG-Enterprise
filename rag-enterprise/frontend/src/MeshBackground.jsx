@@ -2,10 +2,10 @@ import { motion } from "framer-motion"
 
 const BLOBS = {
   dark: [
-    { color: "#4f46e5", opacity: 0.10, size: 600, style: { top: -150, left: -150 },   delay: 0, duration: 14 },
-    { color: "#7c3aed", opacity: 0.08, size: 500, style: { bottom: -150, right: -150 }, delay: 2, duration: 17 },
-    { color: "#0891b2", opacity: 0.07, size: 400, style: { top: "40%", right: -100 },  delay: 1, duration: 13 },
-    { color: "#1d4ed8", opacity: 0.06, size: 350, style: { bottom: "20%", left: -80 }, delay: 3, duration: 16 },
+    { color: "#4f46e5", opacity: 0.22, size: 600, style: { top: -150, left: -150 },   delay: 0, duration: 14 },
+    { color: "#7c3aed", opacity: 0.18, size: 500, style: { bottom: -150, right: -150 }, delay: 2, duration: 17 },
+    { color: "#0891b2", opacity: 0.14, size: 400, style: { top: "40%", right: -100 },  delay: 1, duration: 13 },
+    { color: "#1d4ed8", opacity: 0.12, size: 350, style: { bottom: "20%", left: -80 }, delay: 3, duration: 16 },
   ],
   light: [
     { color: "#818cf8", opacity: 0.08, size: 600, style: { top: -150, left: -150 },   delay: 0, duration: 14 },

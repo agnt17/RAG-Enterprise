@@ -122,7 +122,7 @@ export default function Sidebar({
           <ProfileDropdown
             user={user}
             onLogout={onLogout}
-            theme={resolvedTheme}
+            resolvedTheme={resolvedTheme}
             themeMode={themeMode}
             setThemeMode={setThemeMode}
           />

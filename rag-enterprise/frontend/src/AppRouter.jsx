@@ -9,14 +9,47 @@ import NotFoundPage from "./NotFoundPage"
 import ServerErrorPage from "./ServerErrorPage"
 import MeshBackground from "./MeshBackground"
 
-function getResolvedTheme() {
-  const theme = localStorage.getItem("theme") || "system"
-  const systemIsDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches
-  return theme === "system" ? (systemIsDark ? "dark" : "light") : theme
+function getStoredThemeMode() {
+  return localStorage.getItem("theme") || "system"
+}
+
+function getSystemIsDark() {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches || false
+}
+
+function resolveTheme(themeMode, systemIsDark) {
+  return themeMode === "system" ? (systemIsDark ? "dark" : "light") : themeMode
 }
 
 export default function AppRouter() {
-  const resolvedTheme = getResolvedTheme()
+  const [themeMode, setThemeMode] = React.useState(getStoredThemeMode)
+  const [systemIsDark, setSystemIsDark] = React.useState(getSystemIsDark)
+
+  React.useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)")
+    if (!mq) return
+    const onChange = (e) => setSystemIsDark(e.matches)
+    mq.addEventListener("change", onChange)
+    return () => mq.removeEventListener("change", onChange)
+  }, [])
+
+  React.useEffect(() => {
+    const syncThemeMode = () => setThemeMode(getStoredThemeMode())
+    const onThemeChange = () => syncThemeMode()
+    const onStorage = (e) => {
+      if (e.key === "theme") syncThemeMode()
+    }
+
+    window.addEventListener("docmind-theme-change", onThemeChange)
+    window.addEventListener("storage", onStorage)
+    return () => {
+      window.removeEventListener("docmind-theme-change", onThemeChange)
+      window.removeEventListener("storage", onStorage)
+    }
+  }, [])
+
+  const resolvedTheme = resolveTheme(themeMode, systemIsDark)
+
   return (
     <>
       {/* Global base color — sits behind mesh and all page content */}
@@ -28,12 +61,12 @@ export default function AppRouter() {
       <BrowserRouter>
         <Routes>
         <Route path="/" element={<App />} />
-        <Route path="/settings" element={<SettingsPageWrapper />} />
-        <Route path="/help" element={<HelpPageWrapper />} />
-        <Route path="/upgrade" element={<UpgradePlanPageWrapper />} />
-        <Route path="/welcome" element={<PremiumWelcomePageWrapper />} />
-        <Route path="/error" element={<ServerErrorPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="/settings" element={<SettingsPageWrapper resolvedTheme={resolvedTheme} />} />
+        <Route path="/help" element={<HelpPageWrapper resolvedTheme={resolvedTheme} />} />
+        <Route path="/upgrade" element={<UpgradePlanPageWrapper resolvedTheme={resolvedTheme} />} />
+        <Route path="/welcome" element={<PremiumWelcomePageWrapper resolvedTheme={resolvedTheme} />} />
+        <Route path="/error" element={<ServerErrorPage resolvedTheme={resolvedTheme} />} />
+        <Route path="*" element={<NotFoundPage resolvedTheme={resolvedTheme} />} />
       </Routes>
       </BrowserRouter>
     </>
@@ -41,11 +74,8 @@ export default function AppRouter() {
 }
 
 // Wrapper components that extract theme and user from App state
-function SettingsPageWrapper() {
+function SettingsPageWrapper({ resolvedTheme }) {
   const token = localStorage.getItem("token")
-  const theme = localStorage.getItem("theme") || "system"
-  const systemIsDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  const resolvedTheme = theme === "system" ? (systemIsDark ? "dark" : "light") : theme
   
   // Fetch user data from localStorage or make API call if needed
   const [user, setUser] = React.useState(null)
@@ -76,22 +106,15 @@ function SettingsPageWrapper() {
     return <Navigate to="/" replace />
   }
   
-  return <SettingsPage user={user} theme={resolvedTheme} token={token} />
+  return <SettingsPage user={user} resolvedTheme={resolvedTheme} token={token} />
 }
 
-function HelpPageWrapper() {
-  const theme = localStorage.getItem("theme") || "system"
-  const systemIsDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  const resolvedTheme = theme === "system" ? (systemIsDark ? "dark" : "light") : theme
-  
-  return <HelpPage theme={resolvedTheme} />
+function HelpPageWrapper({ resolvedTheme }) {
+  return <HelpPage resolvedTheme={resolvedTheme} />
 }
 
-function UpgradePlanPageWrapper() {
+function UpgradePlanPageWrapper({ resolvedTheme }) {
   const token = localStorage.getItem("token")
-  const theme = localStorage.getItem("theme") || "system"
-  const systemIsDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  const resolvedTheme = theme === "system" ? (systemIsDark ? "dark" : "light") : theme
   
   const [user, setUser] = React.useState(null)
   
@@ -121,14 +144,11 @@ function UpgradePlanPageWrapper() {
     return <Navigate to="/" replace />
   }
   
-  return <UpgradePlanPage theme={resolvedTheme} user={user} />
+  return <UpgradePlanPage resolvedTheme={resolvedTheme} user={user} />
 }
 
-function PremiumWelcomePageWrapper() {
+function PremiumWelcomePageWrapper({ resolvedTheme }) {
   const token = localStorage.getItem("token")
-  const theme = localStorage.getItem("theme") || "system"
-  const systemIsDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  const resolvedTheme = theme === "system" ? (systemIsDark ? "dark" : "light") : theme
   
   const [user, setUser] = React.useState(null)
   
@@ -158,5 +178,5 @@ function PremiumWelcomePageWrapper() {
     return <Navigate to="/" replace />
   }
   
-  return <PremiumWelcomePage theme={resolvedTheme} user={user} />
+  return <PremiumWelcomePage resolvedTheme={resolvedTheme} user={user} />
 }
