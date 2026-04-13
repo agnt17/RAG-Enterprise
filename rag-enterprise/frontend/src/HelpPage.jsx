@@ -62,9 +62,9 @@ function FAQItem({ question, answer, isDark }) {
   )
 }
 
-export default function HelpPage({ theme }) {
+export default function HelpPage({ resolvedTheme = "dark" }) {
   const navigate = useNavigate()
-  const isDark = theme === "dark"
+  const isDark = resolvedTheme === "dark"
 
   const faqs = [
     {

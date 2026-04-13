@@ -12,7 +12,8 @@ const API = (
     : (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000")
 )?.replace(/\/$/, "")
 
-export default function AuthPage({ onLogin }) {
+export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
+  const isDark = resolvedTheme === "dark"
   const [mode, setMode] = useState("login")   // "login", "register", or "verify"
   const [form, setForm] = useState({ email: "", password: "", name: "" })
   const [verificationEmail, setVerificationEmail] = useState("")
@@ -179,7 +180,24 @@ export default function AuthPage({ onLogin }) {
     setLoading(false)
   }
 
-  const inputCls = "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-blue-500/40 focus:bg-white/8 transition-colors duration-200 input-glow-dark"
+  // ── Theme tokens ──────────────────────────────────────────
+  const inputCls = isDark
+    ? "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500/40 focus:bg-white/8 transition-colors duration-200 input-glow-dark"
+    : "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-[#1d1d1f] placeholder-[#94a3b8] outline-none focus:border-[#0071e3]/50 focus:ring-0 transition-colors duration-200"
+
+  const cardCls = isDark
+    ? "bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-md flex flex-col gap-4 shadow-[0_8px_40px_rgba(0,0,0,0.5),0_0_60px_rgba(79,70,229,0.12)]"
+    : "bg-white/80 border border-slate-200/80 rounded-2xl p-6 backdrop-blur-md flex flex-col gap-4 shadow-xl shadow-slate-200/60"
+
+  const titleCls    = isDark ? "text-2xl font-bold text-white tracking-tight"    : "text-2xl font-bold text-[#1d1d1f] tracking-tight"
+  const subtitleCls = isDark ? "text-sm text-gray-500 mt-1"                      : "text-sm text-slate-500 mt-1"
+  const dividerLine = isDark ? "flex-1 h-px bg-white/10"                         : "flex-1 h-px bg-slate-200"
+  const dividerText = isDark ? "text-xs text-gray-600"                           : "text-xs text-slate-400"
+  const footerText  = isDark ? "text-center text-xs text-gray-600"               : "text-center text-xs text-slate-500"
+  const footerLink  = isDark ? "text-blue-400 hover:text-blue-300 font-medium transition-colors duration-150" : "text-[#0071e3] hover:text-[#0077ED] font-medium transition-colors duration-150"
+  const resendBtn   = isDark ? "w-full py-2.5 rounded-xl border border-white/15 text-gray-200 text-sm hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150" : "w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+  const verifyNote  = isDark ? "text-xs text-gray-400"                           : "text-xs text-slate-500"
+  const verifyEmail = isDark ? "text-gray-300"                                   : "text-[#1d1d1f] font-medium"
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -199,7 +217,7 @@ export default function AuthPage({ onLogin }) {
           >
             ⬡
           </motion.div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">DocMind AI</h1>
+          <h1 className={titleCls}>DocMind AI</h1>
           <AnimatePresence mode="wait">
             <motion.p
               key={mode}
@@ -207,7 +225,7 @@ export default function AuthPage({ onLogin }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.2 }}
-              className="text-sm text-gray-500 mt-1"
+              className={subtitleCls}
             >
               {mode === "login" ? "Welcome back" : mode === "register" ? "Create your account" : "Verify your email"}
             </motion.p>
@@ -217,7 +235,7 @@ export default function AuthPage({ onLogin }) {
         {/* Card */}
         <motion.div
           variants={staggerItem}
-          className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-md flex flex-col gap-4"
+          className={cardCls}
         >
           {/* Google Button */}
           <div className="flex justify-center">
@@ -233,9 +251,9 @@ export default function AuthPage({ onLogin }) {
 
           {/* Divider */}
           <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-white/10" />
-            <span className="text-xs text-gray-600">or</span>
-            <div className="flex-1 h-px bg-white/10" />
+            <div className={dividerLine} />
+            <span className={dividerText}>or</span>
+            <div className={dividerLine} />
           </div>
 
           {/* Form */}
@@ -293,8 +311,8 @@ export default function AuthPage({ onLogin }) {
                 onSubmit={(e) => { e.preventDefault(); submitVerification() }}
                 className="flex flex-col gap-3"
               >
-                <motion.p variants={staggerItem} className="text-xs text-gray-400">
-                  Code sent to <span className="text-gray-300">{verificationEmail}</span>
+                <motion.p variants={staggerItem} className={verifyNote}>
+                  Code sent to <span className={verifyEmail}>{verificationEmail}</span>
                 </motion.p>
                 <motion.input variants={staggerItem} name="otp" inputMode="numeric" maxLength={6}
                   placeholder="6-digit OTP" value={verifyCode}
@@ -328,7 +346,7 @@ export default function AuthPage({ onLogin }) {
                   whileHover={resendCooldown === 0 && !loading ? { scale: 1.01 } : {}}
                   whileTap={resendCooldown === 0 && !loading ? { scale: 0.99 } : {}}
                   transition={ease.spring}
-                  className="w-full py-2.5 rounded-xl border border-white/15 text-gray-200 text-sm hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150">
+                  className={resendBtn}>
                   {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend verification email"}
                 </motion.button>
               </motion.form>
@@ -336,13 +354,13 @@ export default function AuthPage({ onLogin }) {
           </AnimatePresence>
 
           {/* Toggle mode */}
-          <p className="text-center text-xs text-gray-600">
+          <p className={footerText}>
             {mode !== "verify" ? (
               <>
                 {mode === "login" ? "Don't have an account? " : "Already have an account? "}
                 <button
                   onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setInfo("") }}
-                  className="text-blue-400 hover:text-blue-300 transition-colors duration-150 font-medium"
+                  className={footerLink}
                 >
                   {mode === "login" ? "Sign up" : "Sign in"}
                 </button>
@@ -352,7 +370,7 @@ export default function AuthPage({ onLogin }) {
                 Wrong email?{" "}
                 <button
                   onClick={() => { setMode("login"); setVerifyCode(""); setError(""); setInfo("") }}
-                  className="text-blue-400 hover:text-blue-300 transition-colors duration-150 font-medium"
+                  className={footerLink}
                 >
                   Back to sign in
                 </button>

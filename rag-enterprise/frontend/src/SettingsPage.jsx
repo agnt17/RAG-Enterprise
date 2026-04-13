@@ -105,7 +105,7 @@ const planDetails = {
   }
 }
 
-export default function SettingsPage({ user: initialUser, theme, token }) {
+export default function SettingsPage({ user: initialUser, resolvedTheme = "dark", token }) {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
 
@@ -127,7 +127,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
   const [removingPhoto, setRemovingPhoto] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  const isDark = theme === "dark"
+  const isDark = resolvedTheme === "dark"
   const currentPlan = planDetails[user?.plan] || planDetails.free
 
   // Fetch usage stats

@@ -282,11 +282,11 @@ const promptingTips = {
   }
 }
 
-export default function PremiumWelcomePage({ theme, user: initialUser }) {
+export default function PremiumWelcomePage({ resolvedTheme = "dark", user: initialUser }) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const token = localStorage.getItem("token")
-  const isDark = theme === "dark"
+  const isDark = resolvedTheme === "dark"
 
   const [user, setUser] = useState(initialUser)
   const [currentStep, setCurrentStep] = useState(0)

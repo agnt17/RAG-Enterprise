@@ -37,13 +37,8 @@ const IconWrench = () => (
   </svg>
 )
 
-export default function ServerErrorPage({ error }) {
+export default function ServerErrorPage({ error, resolvedTheme = "dark" }) {
   const navigate = useNavigate()
-  
-  // Get theme from localStorage
-  const theme = localStorage.getItem("theme") || "system"
-  const systemIsDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  const resolvedTheme = theme === "system" ? (systemIsDark ? "dark" : "light") : theme
   const isDark = resolvedTheme === "dark"
 
   const handleRefresh = () => {
