@@ -555,9 +555,7 @@ def _run_ingest(temp_file_path: str, document_id: str, user_id: str, filename: s
     db = SessionLocal()
     try:
         from ingest import ingest_pdf
-        from plan_limits import log_usage
         ingest_pdf(temp_file_path, namespace=document_id, db=db, user_id=user_id, document_id=document_id)
-        log_usage(db, user_id, "upload", {"document_id": document_id, "filename": filename})
         doc = db.query(Document).filter(Document.id == document_id).first()
         if doc:
             doc.status = "ready"
@@ -590,7 +588,7 @@ async def upload_pdf(
         raise HTTPException(500, "Storage service not configured. Please contact support.")
 
     # ═══ PLAN ENFORCEMENT ═══════════════════════════════════
-    from plan_limits import check_document_limit, check_file_size_limit
+    from plan_limits import check_document_limit, check_file_size_limit, log_usage
 
     doc_limit = check_document_limit(db, current_user.id, current_user.plan)
     if not doc_limit["can_upload"]:
@@ -598,7 +596,7 @@ async def upload_pdf(
             status_code=403,
             detail={
                 "error": "Document limit reached",
-                "message": f"Your {current_user.plan.title()} plan allows {doc_limit['max_allowed']} documents. You have {doc_limit['current_count']}.",
+                "message": f"Your {current_user.plan.title()} plan allows {doc_limit['max_allowed']} document uploads. You have used {doc_limit['current_count']} upload credits.",
                 "upgrade_required": True,
                 "current_plan": current_user.plan
             }
@@ -662,6 +660,10 @@ async def upload_pdf(
     )
     db.add(doc)
     db.commit()
+
+    # Consume one document credit as soon as upload is accepted.
+    # Deleting a document does not refund this credit.
+    log_usage(db, current_user.id, "upload", {"document_id": doc_id, "filename": file.filename})
 
     # Kick off ingestion — runs after this response is sent
     background_tasks.add_task(_run_ingest, temp_file_path, doc_id, current_user.id, file.filename)

@@ -5,7 +5,7 @@
 
 ## 1. THE BIG PICTURE — What Did I Build?
 
-I built **DocMind AI** — a full-stack web application that lets users upload any PDF document and have an intelligent conversation with it using natural language.
+I built **DocMind AI** — a full-stack web application that lets users upload any PDF document and have an intelligent conversation with it using natural language. It targets Indian law firms and CA firms and is monetised with INR subscription plans via Razorpay.
 
 **The core problem it solves:**
 Traditional document search finds exact keywords. If you search "refund policy" in a contract, it only finds those exact words. DocMind AI understands *meaning* — so "money back guarantee" and "refund policy" return the same result because they mean the same thing.
@@ -34,21 +34,22 @@ If you send a 100-page PDF directly to an AI model, two problems arise:
 ```
 INGESTION PHASE (happens once when you upload)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PDF → Extract Text → Split into Chunks → Convert to Vectors → Store in Pinecone
+PDF → Extract Text → Split into Chunks → Embed (Cohere) → Store in Pinecone + PostgreSQL
 
 QUERY PHASE (happens every time you ask a question)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Question → Convert to Vector → Find Similar Chunks → Send to LLM → Get Answer
+Question → Hybrid Retrieval (BM25 + Pinecone) → Cohere Rerank (top-4) → LLM → Answer
 ```
 
 Instead of sending the entire document, RAG:
 1. Breaks the document into small pieces (chunks)
 2. Converts each piece into a mathematical representation (vector/embedding)
-3. Stores all vectors in a vector database (Pinecone)
-4. When you ask a question, converts your question to a vector
-5. Finds the 4 most similar chunks using math (cosine similarity)
-6. Sends ONLY those 4 chunks + your question to the LLM
-7. Gets a grounded, accurate answer
+3. Stores vectors in Pinecone (semantic) and raw text in PostgreSQL (for BM25 keyword search)
+4. When you ask a question, runs both BM25 keyword search and Pinecone semantic search in parallel
+5. Merges all candidates (up to 20) and reranks them with Cohere's Rerank API
+6. Keeps only the top-4 highest-quality chunks
+7. Sends those 4 chunks + your question to the LLM
+8. Gets a grounded, accurate answer with source citations
 
 **The result:** Fast, cheap, accurate answers — regardless of document size.
 
@@ -60,16 +61,40 @@ Instead of sending the entire document, RAG:
 rag-enterprise/
 │
 ├── backend/                    ← Python FastAPI server
-│   ├── main.py                 ← API gateway (entry point)
+│   ├── main.py                 ← API gateway (~1550 lines, all endpoints)
+│   ├── database.py             ← SQLAlchemy ORM (8 tables + inline migrations)
+│   ├── auth.py                 ← JWT + Google OAuth + OTP/magic-link verification
 │   ├── ingest.py               ← PDF processing pipeline
-│   ├── rag.py                  ← Query engine
+│   ├── rag.py                  ← Hybrid search + reranking query engine
+│   ├── payment.py              ← Razorpay + proration + GST
+│   ├── plan_limits.py          ← Plan enforcement + usage tracking
+│   ├── email_service.py        ← Email verification (console or SMTP)
+│   ├── supabase_storage.py     ← Supabase Storage (PDFs + profile images)
+│   ├── cleanup_data.py         ← Admin cleanup utility
+│   ├── reset_db.py             ← Dev DB reset utility
+│   ├── tests/                  ← pytest test suite
+│   │   ├── test_api.py
+│   │   ├── test_auth.py
+│   │   ├── test_document_upload_quota.py
+│   │   └── test_rag_out_of_context.py
 │   └── requirements.txt        ← Python dependencies
 │
 ├── frontend/                   ← React application
 │   └── src/
 │       ├── AppRouter.jsx       ← Routes + global background layers
-│       ├── App.jsx             ← App shell + state orchestration
+│       ├── App.jsx             ← App shell + chat state orchestration
+│       ├── AuthPage.jsx        ← Login / register / email-verify flow
+│       ├── SettingsPage.jsx    ← Profile, billing, security settings
+│       ├── UpgradePlanPage.jsx ← Pricing + Razorpay checkout
+│       ├── PremiumWelcomePage.jsx ← Post-upgrade onboarding
+│       ├── HelpPage.jsx        ← FAQ and support
+│       ├── ProfileDropdown.jsx ← User menu + theme switcher
 │       ├── MeshBackground.jsx  ← Animated gradient mesh
+│       ├── Toast.jsx           ← Global toast notification system
+│       ├── Loader.jsx          ← Spinner/button-loader primitives
+│       ├── ErrorBoundary.jsx   ← Runtime error boundary
+│       ├── NotFoundPage.jsx    ← 404 page
+│       ├── ServerErrorPage.jsx ← 500 page
 │       ├── components/
 │       │   ├── Sidebar.jsx
 │       │   ├── ChatHeader.jsx
@@ -105,42 +130,64 @@ The backend and frontend are completely independent applications that communicat
 
 **LangChain**
 - The orchestration framework that connects everything together
-- Instead of writing custom code to connect PDF loading → chunking → embedding → retrieval → LLM, LangChain provides pre-built connectors
-- Uses LCEL (LangChain Expression Language) — a pipe-based syntax where each step feeds into the next: `retrieve | prompt | llm | parse`
+- Uses `EnsembleRetriever` to merge BM25 + Pinecone results in one call
+- LCEL (LangChain Expression Language) pipe syntax: `prompt | llm | parser`
 
 **Groq + LLaMA-3.3-70b**
 - Why Groq instead of OpenAI? Groq runs LLaMA models on custom hardware called LPUs (Language Processing Units) — they're 10x faster than GPUs
 - LLaMA-3.3-70b is Meta's open-source model that rivals GPT-4 in quality
-- Most importantly: **completely free tier** — critical for a portfolio project
+- Most importantly: **completely free tier** — critical for a portfolio/early-stage product
 
-**Cohere Embeddings**
-- Converts text to vectors (384 numbers per sentence that represent meaning)
-- Why Cohere over HuggingFace? HuggingFace runs locally and needs 500MB+ RAM — too heavy for free deployment servers. Cohere is an API call — zero server RAM cost
-- Free tier: 1000 calls/month — sufficient for a portfolio project
+**Cohere — Embeddings + Reranking**
+- `embed-english-v3.0`: Converts text to 1024-dimensional vectors
+- `rerank-english-v3.0`: Takes 20 retrieved candidates and reranks them by relevance — the single biggest quality improvement in Phase 5
+- Why Cohere over HuggingFace? HuggingFace runs the model locally and needs 500MB+ RAM — too heavy for free deployment servers. Cohere is an API call — zero server RAM cost
 
 **Pinecone**
 - A vector database — specifically designed to store and search millions of vectors with millisecond response time
-- Why not a regular database? Regular databases (PostgreSQL, MongoDB) do exact matching. Pinecone does similarity matching — find the 4 most mathematically similar vectors out of millions
-- Free tier: 1 index, sufficient for this project
+- Each uploaded document gets its own **namespace** (= the document's UUID) for complete isolation
+- Why not a regular database? Regular databases do exact matching. Pinecone does similarity matching — find the most mathematically similar vectors out of millions
+
+**BM25 (in-memory keyword search)**
+- Classic information retrieval algorithm — great at finding exact entity names, clause numbers, and specific terms that semantic search sometimes misses
+- Chunks are persisted to PostgreSQL (`document_chunks` table), loaded into memory at query time
+- Weighted 0.4 vs Pinecone's 0.6 in the EnsembleRetriever — dense is weighted higher because meaning matters more for document Q&A, but BM25 anchors precision
+
+**Supabase Storage**
+- Cloud file storage for PDF documents and user profile photos
+- Generates time-limited signed URLs (1-hour expiry) for secure document access
+- Replaces the original local-disk `uploads/` folder for production use
+
+**Razorpay**
+- Indian payment gateway — supports UPI, cards, net banking
+- Prices in INR with 18% GST computed and stored separately
+- Prorated billing: when upgrading mid-cycle, user gets credit for unused days
+
+**PostgreSQL + SQLAlchemy**
+- 8 tables: `users`, `documents`, `conversations`, `usage_logs`, `coupons`, `coupon_usages`, `payments`, `document_chunks`
+- Inline migrations via `_ensure_user_columns()` — no Alembic, no migration files
+- Conversation history stored as a JSON string in a single `String` column (simple, no JOIN needed)
+
+**SlowAPI (Rate Limiting)**
+- Per-endpoint rate limits: `/register` 5/min, `/login` 10/min, `/upload` 10/day, `/query` 20/day
+- Prevents abuse without needing a Redis setup
 
 ### Frontend
 
-**React + Vite**
-- React for the component-based UI (reusable upload zone, message bubbles, etc.)
+**React 19 + Vite**
+- React for the component-based UI
 - Vite instead of Create React App — 10x faster build times, modern tooling
 
 **Tailwind CSS v4**
 - Utility-first CSS — write styling directly in JSX without separate CSS files
-- v4 changed the configuration completely — no more tailwind.config.js, just `@import "tailwindcss"` in CSS
+- v4 config: just `@import "tailwindcss"` in CSS, no `tailwind.config.js`
 
-**Axios**
-- HTTP client for making API calls to the FastAPI backend
-- Cleaner than native fetch — automatic JSON parsing, better error handling
+**Framer Motion**
+- Smooth animations: staggered message reveal, sidebar transitions, modal animations
 
-**React Markdown**
-- LLaMA returns responses with markdown formatting (**bold**, bullet points, etc.)
-- Without this library, the raw markdown symbols appear as text
-- With it, the formatting renders properly in the chat interface
+**Glassmorphism Design**
+- All pages use backdrop blur, semi-transparent glass cards, and the animated `MeshBackground` gradient mesh
+- Mobile-first responsive with `100dvh`, `env(safe-area-inset-bottom)`, and sidebar overlay
 
 ---
 
@@ -148,24 +195,16 @@ The backend and frontend are completely independent applications that communicat
 
 ### `ingest.py` — The Document Processing Pipeline
 
-This file runs once every time a user uploads a PDF. Its job is to take a raw PDF and turn it into searchable vectors in Pinecone.
+This file runs once every time a user uploads a PDF. Its job is to take a raw PDF and turn it into searchable vectors in Pinecone, and also persist raw chunks to PostgreSQL for BM25.
 
-**Step 1 — Clean Slate**
-```python
-stats = index.describe_index_stats()
-if stats.total_vector_count > 0:
-    index.delete(delete_all=True)
-```
-Before ingesting a new document, we check if Pinecone has existing vectors and delete them. Without this, uploading a new PDF would mix its data with the previous document's data — users would get answers from both documents.
-
-**Step 2 — Load PDF**
+**Step 1 — Load PDF**
 ```python
 loader = PyPDFLoader(file_path)
 documents = loader.load()
 ```
-PyPDFLoader extracts text from each page and returns a list of Document objects. Each Document has two things: `page_content` (the text) and `metadata` (page number, source filename). A 10-page PDF returns 10 Document objects.
+PyPDFLoader extracts text from each page. A 10-page PDF returns 10 Document objects, each with `page_content` and metadata (page number, source filename).
 
-**Step 3 — Chunking**
+**Step 2 — Chunking**
 ```python
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=1000,
@@ -173,156 +212,221 @@ splitter = RecursiveCharacterTextSplitter(
 )
 chunks = splitter.split_documents(documents)
 ```
-Why chunk? Because we need small, focused pieces of text — not entire pages. The "Recursive" splitter tries to split on paragraphs first, then sentences, then words — always preserving meaning.
+The "Recursive" splitter tries to split on paragraphs first, then sentences, then words — preserving meaning. `chunk_overlap=200` ensures context isn't lost at boundaries.
 
-`chunk_overlap=200` is critical — consecutive chunks share 200 characters. Why? If an answer spans the boundary between two chunks, the overlap ensures neither chunk loses that context.
-
-**Step 4 — Embed and Store**
+**Step 3 — Embed and Store in Pinecone**
 ```python
-PineconeVectorStore.from_documents(chunks, embeddings, index_name=...)
+PineconeVectorStore.from_documents(chunks, embeddings, index_name=..., namespace=document_id)
 ```
-For every chunk, Cohere converts the text into 1024 numbers that represent its meaning, then uploads those numbers + original text + metadata to Pinecone. This is the most expensive step — it makes one API call per batch of chunks.
+Cohere converts each chunk into a 1024-dimensional vector, then uploads to Pinecone under the document's UUID namespace. Each document has its own namespace — deleting a document deletes only its vectors.
+
+**Step 4 — Persist chunks to PostgreSQL (for BM25)**
+```python
+DocumentChunk(document_id=document_id, content=chunk.page_content, page_num=..., chunk_index=i)
+```
+Raw text chunks are saved to the `document_chunks` table. At query time, these are loaded into memory to build an in-memory BM25Retriever.
 
 ---
 
-### `rag.py` — The Query Engine
+### `rag.py` — The Query Engine (Phase 5: Hybrid Search + Reranking)
 
-This file runs every time a user asks a question. Its job is to find relevant context and generate an accurate answer.
+This file runs every time a user asks a question. It implements the full pipeline.
 
-**The Memory System**
+**Step 1 — Dense (semantic) retriever via Pinecone**
 ```python
-store = {}
-
-def get_session_history(session_id: str):
-    if session_id not in store:
-        store[session_id] = InMemoryChatMessageHistory()
-    return store[session_id]
+vectorstore = PineconeVectorStore(index_name=..., embedding=embeddings, namespace=namespace)
+dense_retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 ```
-`store` is a Python dictionary in RAM that holds conversation history. Each session gets its own list of messages. This is why follow-up questions work — "what else did he work on?" knows who "he" refers to because the previous messages are in memory.
 
-**Limitation:** This resets when the server restarts. For production, this would be moved to a database (Redis or PostgreSQL).
-
-**The RAG Chain (LCEL Pipeline)**
+**Step 2 — Sparse (keyword) retriever via BM25**
 ```python
-chain = (
-    RunnablePassthrough.assign(context=lambda x: retriever.invoke(x["question"]))
-    | prompt
-    | llm
-    | StrOutputParser()
+bm25_retriever = _build_bm25_retriever(db, document_id, k=10)
+```
+Loads chunks from PostgreSQL and builds an in-memory BM25 retriever. Returns `None` for legacy documents (graceful fallback to dense-only).
+
+**Step 3 — Hybrid retrieval with EnsembleRetriever**
+```python
+ensemble_retriever = EnsembleRetriever(
+    retrievers=[bm25_retriever, dense_retriever],
+    weights=[0.4, 0.6],
 )
+retrieved_docs = ensemble_retriever.invoke(question)
 ```
-Read this left to right like a Unix pipe:
-1. `RunnablePassthrough.assign(context=...)` — runs the retriever on the question, adds the top 4 chunks as `context`
-2. `| prompt` — fills the prompt template with context + chat history + question
-3. `| llm` — sends everything to LLaMA-3.3-70b via Groq
-4. `| StrOutputParser()` — extracts the text string from the LLM response object
+Both retrievers run in parallel and results are merged and scored. BM25 weight 0.4, dense weight 0.6.
 
-**The Prompt Template**
+**Step 4 — Cohere Reranking**
 ```python
-("system", "You are a helpful assistant. Answer based only on the context below:\n\n{context}"),
-MessagesPlaceholder(variable_name="chat_history"),
-("human", "{question}"),
+reranked_docs, scores = _rerank_with_cohere(question, retrieved_docs, top_n=4)
 ```
-The system prompt tells the LLM to ONLY answer from the provided context — this prevents hallucination. The model won't make up answers because it's explicitly instructed to use only what's in the document.
+Cohere's `rerank-english-v3.0` model reorders all candidates by relevance to the specific question, keeping only the top-4. This is the single highest-impact quality improvement.
+
+**Step 5 — LLM Chain**
+```python
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "Answer based ONLY on the context below..."),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("human", "{question}"),
+])
+chain = prompt | llm | StrOutputParser()
+```
+The system prompt strictly constrains the LLM to only use the provided context, preventing hallucination.
+
+**Chat History — PostgreSQL-backed**
+```python
+class PostgresChatMessageHistory(BaseChatMessageHistory):
+    ...
+```
+Unlike the original in-memory `store = {}`, conversation history is now persisted to the `conversations` table in PostgreSQL. History survives server restarts and scales to multiple users. Each conversation is stored as a JSON array of messages in a single `String` column.
+
+**Source Citations**
+Each answer includes a `sources` list with page numbers, source filename, and a 300-character excerpt. The `_normalize_source_page_number` helper unifies 0-indexed Pinecone pages and 1-indexed BM25 chunks into display-safe 1-indexed page numbers.
+
+**Out-of-Context Detection**
+If retrieval returns no usable content, or the LLM explicitly returns the out-of-context sentinel message, sources are hidden and the sentinel is returned directly. This prevents hallucination responses.
 
 ---
 
 ### `main.py` — The API Gateway
 
-This is the entry point — the file uvicorn runs. It defines the HTTP endpoints that the frontend calls.
+This is the entry point. It defines all ~25 HTTP endpoints.
 
 **CORS Middleware**
 ```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://rag-enterprise.vercel.app"],
-    ...
-)
+allow_origins=["http://localhost:5173", "https://rag-enterprise.vercel.app"]
 ```
-CORS is a browser security feature. When React (on port 5173) calls FastAPI (on port 8000), the browser blocks it by default — they're on different origins. This middleware adds headers telling the browser "requests from these origins are allowed."
 
-**Lazy Loading Pattern**
-```python
-rag_chain = None
-
-def get_chain():
-    global rag_chain
-    if rag_chain is None:
-        rag_chain = get_rag_chain()
-    return rag_chain
-```
-The RAG chain connects to Pinecone on initialization. We don't do this at server startup because Pinecone might be empty. Instead, we initialize on the first query after a document has been uploaded. We also reset it to `None` on each upload so it reconnects with fresh Pinecone data.
-
-**The Upload Endpoint**
+**Background Upload Pattern**
 ```python
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(background_tasks: BackgroundTasks, ...):
+    # 1. Validate plan limits, file type, file size, magic bytes
+    # 2. Upload to Supabase Storage
+    # 3. Create DB record (status="pending")
+    # 4. Log upload credit
+    background_tasks.add_task(_run_ingest, temp_path, doc_id, ...)
+    return {"status": "pending", "document_id": doc_id}
 ```
-`async def` means FastAPI can handle other requests while this one is processing. For large PDFs that take 10+ seconds to index, this prevents the server from being completely blocked.
+Returns in ~2-3s. Frontend polls `GET /documents/{id}/status` every 2s until `"ready"`.
+
+**Plan Enforcement Pattern**
+Every protected endpoint calls `check_document_limit()` or `check_question_limit()` before doing any work. Upload credits are consumed on acceptance (not refunded on deletion — this is intentional business logic).
+
+**Rate Limiting**
+All sensitive endpoints use `@limiter.limit()`:
+- `/register`: 5/minute
+- `/login`: 10/minute
+- `/verify-email`: 10/15 minutes
+- `/resend-verification`: 3/15 minutes
+- `/upload`: 10/day
+- `/query`: 20/day
+
+**Plan Expiration**
+`check_and_expire_plan()` is called on every `/me` and `/login` response. If the user's `plan_expires_at` has passed, their plan is automatically downgraded to `"free"`.
 
 ---
 
-### `App.jsx` + Modular UI Components — The Current Frontend
+### `database.py` — The 8-Table Schema
 
-Initially, most UI logic lived in `App.jsx`. The current frontend keeps business/data orchestration in `App.jsx` and pushes rendering into focused components.
+| Table | Purpose |
+|-------|---------|
+| `users` | Auth, billing, profession, email verification state |
+| `documents` | Uploaded PDFs — UUID is the Pinecone namespace; `status`: `pending`/`ready`/`failed` |
+| `conversations` | Per-document chat history (JSON messages array in a String column) |
+| `usage_logs` | Question + upload events for plan enforcement + analytics |
+| `coupons` | Promo codes (percentage or flat INR discounts, per-user limits) |
+| `coupon_usages` | Per-user coupon redemption tracking |
+| `payments` | Razorpay billing history with GST stored separately |
+| `document_chunks` | Raw text chunks for BM25 hybrid search |
 
-**Current composition:**
+Schema changes are applied inline via `_ensure_user_columns()` — no Alembic, ever.
+
+---
+
+### `payment.py` — Razorpay + Proration + GST
+
+**Prorated Upgrades**
+When a user upgrades mid-cycle (e.g., Basic → Pro on day 15 of 30), they get credit for their unused days. The credit is based on the **actual amount they paid** (not the base plan price), preventing a coupon exploit where users could get full-price credit after paying a discounted price.
+
+**GST (18%)**
+All amounts are stored in INR. GST is computed and stored separately in the `payments` table. The UI shows a full price breakdown: base → coupon discount → subtotal → GST → total.
+
+**Coupon System**
+- Percentage or flat INR discounts
+- Per-user redemption limits
+- Plan-specific applicability (e.g., only on Pro plan)
+- Minimum order amount requirement
+
+---
+
+### `App.jsx` + Modular UI Components — The Frontend
+
+The frontend is a React SPA. `App.jsx` manages all data state and orchestration; rendering is delegated to focused components.
+
+**Component Tree:**
 ```text
-App.jsx
-├── Sidebar
-│   └── DocumentRow (xN)
-├── ChatHeader
-├── ChatMessages
-│   └── MessageBubble (xN)
-├── QuickActions
-├── ChatInput
-└── SourceModal
-
 AppRouter
 ├── Global base color layer
-├── MeshBackground
-└── Route wrappers (settings/help/upgrade/welcome)
+├── MeshBackground (animated gradient blobs)
+└── Route handlers
+    ├── AuthPage      (login / register / verify-email)
+    ├── App           (chat shell)
+    │   ├── Sidebar → DocumentRow (×N)
+    │   ├── ChatHeader
+    │   ├── ChatMessages → MessageBubble (×N)
+    │   ├── QuickActions
+    │   ├── ChatInput
+    │   └── SourceModal
+    ├── SettingsPage  (profile + billing + security)
+    ├── UpgradePlanPage
+    ├── PremiumWelcomePage
+    ├── HelpPage
+    ├── NotFoundPage
+    └── ServerErrorPage
 ```
 
-**State Management**
+**Core State in App.jsx:**
 ```javascript
 const [messages, setMessages] = useState([])
 const [uploading, setUploading] = useState(false)
 const [uploadedFile, setUploadedFile] = useState(null)
 const [loading, setLoading] = useState(false)
+const [documents, setDocuments] = useState([])
+const [processingDocId, setProcessingDocId] = useState(null) // polling state
+const [sidebarOpen, setSidebarOpen] = useState(...)
+const [sourceModal, setSourceModal] = useState(null)
+const [user, setUser] = useState(null)
 ```
-These are the core states that drive the chat shell:
-- `messages` — array of all chat messages, each with role (user/ai/system), text, and timestamp
-- `uploading` — shows the progress bar animation during PDF processing
-- `uploadedFile` — once set, enables the input box
-- `loading` — shows the bouncing dots animation while waiting for AI response
 
-On top of this, the current shell also manages responsive UI state (`sidebarOpen`), document switching/loading states, and source-modal visibility.
-
-**The Upload Flow**
+**The Upload Flow with Background Polling:**
 ```javascript
-const uploadPDF = async (e) => {
-    const form = new FormData()
-    form.append("file", file)
-    await axios.post(`${API}/upload`, form)
-}
+// 1. POST /upload → returns immediately with {status: "pending", document_id}
+// 2. Frontend polls GET /documents/{id}/status every 2s
+// 3. When status === "ready", enable chat input and show success toast
+setProcessingDocId(doc_id)
+// ... interval polling ...
 ```
-`FormData` is the browser's way of sending files over HTTP — the same format as an HTML form submission. The file goes as multipart/form-data which FastAPI's `UploadFile` knows how to receive.
 
-**The Query Flow**
+**The Query Flow:**
 ```javascript
-setMessages(prev => [...prev, { role: "user", text: q, time: getTime() }])
+// Optimistic UI — add user message immediately
+setMessages(prev => [...prev, { role: "user", text: q, sources: [], time }])
+// Await AI response
 const res = await axios.post(`${API}/query`, { question: q })
-setMessages(prev => [...prev, { role: "ai", text: res.data.answer, time: getTime() }])
+// Add AI message with sources
+setMessages(prev => [...prev, {
+    role: "ai",
+    text: res.data.answer,
+    sources: res.data.sources,
+    time
+}])
 ```
-We add the user message immediately (optimistic UI — don't wait for the server), then await the AI response and add it when it arrives. This makes the interface feel responsive.
 
-**Responsive UX layer (recent upgrade):**
-- App shell runs on `100dvh` with global `overflow-x: hidden` to prevent mobile layout jumps.
-- Input/footer and onboarding actions use safe-area padding with `env(safe-area-inset-bottom)`.
-- Sidebar uses a mobile overlay and constrained width (`min(88vw, 18rem)`).
-- Profile and document action menus are portal-based and clamped to the viewport (no off-screen menus).
-- Chat loading UX now includes themed skeleton shimmer and a delayed "server warming up" hint after 6 seconds.
+**Glassmorphism UI:**
+- `MeshBackground` renders animated gradient blobs behind all pages
+- All cards use `backdrop-filter: blur` + semi-transparent fills
+- Safe-area padding: `env(safe-area-inset-bottom)` for mobile browsers
+- `100dvh` shell prevents layout jumps on mobile (accounts for browser chrome)
+- Sidebar overlay on mobile, persistent on ≥1024px
 
 ---
 
@@ -331,120 +435,116 @@ We add the user message immediately (optimistic UI — don't wait for the server
 ```
 User Browser
     ↓ HTTPS
-Vercel (Frontend — React)
+Vercel (Frontend — React SPA)
     ↓ HTTPS API calls
 Render (Backend — FastAPI)
-    ↓ HTTPS
-Pinecone (Vector DB — Cloud)
-    ↓ API
-Cohere (Embeddings — Cloud)
-    ↓ API
-Groq (LLM — Cloud)
+    ├── ↓ HTTPS      Pinecone (Vector DB — Cloud)
+    ├── ↓ API        Cohere (Embeddings + Reranking — Cloud)
+    ├── ↓ API        Groq (LLM — Cloud)
+    ├── ↓ HTTPS      Supabase (File Storage — Cloud)
+    └── ↓ HTTPS      PostgreSQL (Managed DB — Render/Supabase)
 ```
 
 **Why Vercel for frontend?**
-Vercel is made by the creators of Next.js — it's the gold standard for deploying React/Next.js apps. Free tier, automatic deployments on git push, global CDN, HTTPS automatic.
+Vercel is the gold standard for React/Next.js apps. Free tier, automatic deployments on git push, global CDN, HTTPS automatic.
 
 **Why Render for backend?**
-Render is the most straightforward Python deployment platform. Connect GitHub repo, add environment variables, deploy. Free tier spins down after 15 minutes of inactivity (first request takes ~50 seconds to wake up) — upgrade to $7/month for always-on.
+Straightforward Python deployment. Free tier spins down after 15 minutes of inactivity — a keep-alive cron job on cron-job.org pings `/health` every 10 minutes to prevent cold starts.
 
 **Environment Variables — Security**
 API keys are never in the code. They're stored in:
-- `.env` file locally (added to `.gitignore` — never committed to GitHub)
-- Render dashboard → Environment Variables (for production backend)
-- Vercel dashboard → Environment Variables (for production frontend)
+- `.env` file locally (added to `.gitignore`)
+- Render dashboard → Environment Variables (production backend)
+- Vercel dashboard → Environment Variables (production frontend)
 
 ---
 
 ## 7. KEY TECHNICAL DECISIONS AND TRADE-OFFS
 
-**Decision 1: Cohere over HuggingFace for embeddings**
-- HuggingFace runs the model locally — great for local dev, needs 500MB RAM on server
+**Decision 1: Hybrid Search over Pure Semantic Search**
+- Semantic search alone misses exact entity names, clause numbers, and case citations
+- BM25 alone misses paraphrased queries and conceptual questions
+- EnsembleRetriever with weights [0.4, 0.6] gets the best of both
+- Trade-off: More complex pipeline; requires persisting chunks to PostgreSQL
+
+**Decision 2: Cohere Reranking**
+- The biggest single quality improvement in Phase 5
+- Without it, the top-4 from hybrid search might include noise; with it, the model gets the 4 most precisely relevant chunks
+- Trade-off: Adds an extra API call per query; graceful fallback if Cohere is down
+
+**Decision 3: Supabase Storage over Local Disk**
+- Local disk storage doesn't survive Render restarts on free tier
+- Supabase gives permanent cloud storage with signed URLs for security
+- Trade-off: Adds a dependency; file access goes through an extra HTTP hop
+
+**Decision 4: PostgreSQL Chat History over In-Memory**
+- Original design stored history in a Python dict (`store = {}`), reset on server restart
+- PostgreSQL history persists forever, supports multiple users, and survives deployments
+- Trade-off: Slightly more complex `PostgresChatMessageHistory` class; every message does a DB commit
+
+**Decision 5: Inline Migrations over Alembic**
+- Alembic requires migration files, version tracking, and careful sequencing
+- `_ensure_user_columns()` adds missing columns if they don't exist — zero setup, always safe
+- Trade-off: Not suitable for column renames or type changes (need manual DB intervention)
+
+**Decision 6: Upload Credits (non-refundable)**
+- `get_user_uploaded_documents_count()` counts lifetime upload events from `usage_logs`, not active documents
+- Deleting a document does NOT refund the upload credit
+- Trade-off: Stricter for users, but prevents the exploit where users delete + re-upload to reset their quota
+
+**Decision 7: Cohere over HuggingFace for embeddings**
+- HuggingFace runs the model locally — needs 500MB+ RAM
 - Free deployment servers (Render) have 512MB total RAM — HuggingFace would crash it
-- Cohere is an API call — uses ~0MB server RAM, perfect for free deployment
-- Trade-off: Adds a dependency on Cohere's service, 1000 free calls/month limit
-
-**Decision 2: Groq over OpenAI**
-- OpenAI requires a credit card and charges per token
-- Groq is genuinely free with generous limits, and actually faster than OpenAI
-- LLaMA-3.3-70b quality is comparable to GPT-4 for document Q&A tasks
-- Trade-off: Less community documentation, fewer model options
-
-**Decision 3: In-memory chat history over database**
-- Simpler to implement — no database setup needed
-- Works perfectly for single-user demo/portfolio use
-- Trade-off: History lost on server restart, doesn't scale to multiple users
-- Future fix: Move to Redis (fast in-memory database) or PostgreSQL
-
-**Decision 4: Delete all vectors on new upload**
-- Simple, clean implementation — one document at a time
-- Prevents data mixing between documents
-- Trade-off: Can't query multiple documents simultaneously
-- Future fix: Use Pinecone namespaces to store each document separately
+- Cohere is an API call — ~0MB server RAM cost
+- Trade-off: 1000 free API calls/month limit (but enough for dev/portfolio use)
 
 ---
 
 ## 8. HOW I USED AI ASSISTANCE IN DEVELOPMENT
 
-This is specifically what the prompt is asking about. Here's an honest account:
-
 **Architecture decisions**
-Used Claude to decide the tech stack — specifically why Groq over OpenAI (free tier), why Cohere over HuggingFace (deployment RAM constraints), and the overall RAG architecture pattern.
+Used Claude to design the hybrid search architecture — specifically how to weight BM25 vs. dense retrieval, and why Cohere reranking provides better quality than just returning top-K from the ensemble.
 
 **Debugging dependency conflicts**
-LangChain had major breaking changes in 2024 — the package was split into `langchain`, `langchain-core`, `langchain-community`, `langchain-text-splitters`. Used AI to identify which package each import belonged to after migration errors.
+LangChain had major breaking changes in 2024. The split into `langchain-classic` (for EnsembleRetriever) vs `langchain-community` required AI assistance to trace which package each import lived in after the migration.
 
 **LCEL chain syntax**
-The pipe-based chain syntax (`retrieve | prompt | llm | parse`) is LangChain-specific. Used AI to understand how `RunnablePassthrough.assign` works and why `RunnableWithMessageHistory` is the modern replacement for the deprecated `ConversationalRetrievalChain`.
+The pipe-based chain syntax and `RunnablePassthrough` patterns are LangChain-specific. Used AI to understand composition patterns for the hybrid pipeline.
 
-**CORS debugging**
-The trailing slash bug (`"https://rag-enterprise.vercel.app/"` vs `"https://rag-enterprise.vercel.app"`) was identified by Claude after I shared the error — a subtle bug that would have taken hours to find manually.
+**Payment proration logic**
+The coupon-exploit protection (crediting actual paid amount, not base price) was a non-obvious edge case identified and solved with AI assistance.
 
 **What I understood and owned:**
-Every line of code was explained to me and I understand what it does. I can explain the RAG concept, why chunking matters, what embeddings are, how cosine similarity works, why async is important, and every architectural decision made.
-
-**The key insight about AI-assisted development:**
-AI doesn't replace understanding — it accelerates it. The difference between using AI and not using AI is the difference between spending 2 weeks fighting dependency errors and spending 2 hours building the actual product. The understanding has to be yours.
+Every architectural decision — why hybrid search, why reranking, how proration works, the namespace = document UUID contract, why BM25 upload credits are non-refundable. The understanding has to be yours. AI accelerates — it doesn't replace.
 
 ---
 
 ## 9. HOW TO SCALE THIS — The Path to Production
 
-### Current State (MVP)
-- 1 user at a time
-- 1 document at a time
-- In-memory chat history
-- Free tier services
-
-### Scale to 100 Users
-**Add user authentication (JWT)**
-Each user logs in, gets a token, their requests are identified. FastAPI has excellent JWT support via `python-jose`.
-
-**Add Pinecone namespaces**
-```python
-# Instead of one shared index, each user gets their own space
-PineconeVectorStore.from_documents(chunks, embeddings, namespace=user_id)
-```
-
-**Add PostgreSQL**
-Store users, their uploaded documents, and chat history. Use `asyncpg` for async database queries.
+### Current State
+- Multi-user (JWT auth, per-user namespaces)
+- Multi-document (document switching with isolated conversations)
+- PostgreSQL-backed history (survives restarts)
+- Supabase file storage (survives restarts)
+- Razorpay subscriptions with usage enforcement
 
 ### Scale to 10,000 Users
 **Add a job queue (Celery + Redis)**
-PDF processing takes 10-30 seconds. Instead of making the user wait, add it to a queue and notify when done.
+PDF processing takes 10-30 seconds. Move from FastAPI `BackgroundTasks` to a proper queue for retry logic and visibility.
 
-**Add hybrid search**
-Combine vector search (semantic) with keyword search (BM25) for better retrieval accuracy. Pinecone supports this natively.
+**Cache BM25 retrievers**
+Currently rebuilt from DB on every query. Cache per `document_id` with TTL eviction.
 
-**Add re-ranking**
-After retrieving 10 chunks, use Cohere's reranker to select the best 4. Significant quality improvement for complex questions.
+**Add Redis for rate limiting**
+SlowAPI in-memory counters reset on restart. Redis-backed counters survive restarts and work across multiple instances.
 
-### Make It a Real SaaS Product
-- **Stripe integration** — charge $20/month, offer different tiers by document count
-- **Multi-format support** — Word docs, Excel files, web pages (not just PDFs)
-- **Source citations** — show exactly which page each answer came from
-- **RAGAS evaluation** — automated quality scoring for faithfulness and relevancy
-- **Slack/Teams integration** — query documents directly from messaging apps
+### Make It a Full SaaS Product
+- **Razorpay webhooks** — auto-renewal instead of manual re-subscription
+- **Multi-format support** — Word, Excel, web pages
+- **RAGAS evaluation** — automated answer quality scoring (faithfulness + relevancy)
+- **Chat export** — download conversation as PDF or Markdown
+- **WhatsApp Business API** — query documents from WhatsApp for tier-2 city users
+- **Team workspaces** — shared documents across law firm team members
 
 ---
 
@@ -454,15 +554,17 @@ After retrieving 10 chunks, use Cohere's reranker to select the best 4. Signific
 
 1. **Full-stack capability** — Python backend + React frontend, both deployed and working together
 
-2. **Modern AI/ML engineering** — RAG architecture is the dominant pattern in production AI systems today. Every company building document AI uses this pattern.
+2. **Modern AI/ML engineering** — RAG + hybrid search + reranking is the production pattern used by every serious document AI product today
 
-3. **System design thinking** — made conscious trade-offs (Cohere vs HuggingFace, in-memory vs database) with clear reasoning
+3. **System design thinking** — conscious trade-offs (Cohere vs HuggingFace, inline migrations vs Alembic, upload credits as non-refundable) with clear reasoning
 
-4. **Production mindset** — environment variables, CORS, async endpoints, deployment — not just "works on my machine"
+4. **Production mindset** — rate limiting, plan enforcement, JWT auth, Supabase storage, GST billing, environment variables, CI/CD
 
-5. **Learning velocity** — went from concept to deployed product, debugging real production issues (Pinecone 404, CORS trailing slash, Tailwind v4 config changes)
+5. **Business understanding** — built for a specific market (Indian law/CA firms), with INR pricing, GST compliance, and profession-specific onboarding
 
-6. **Understanding of the AI stack** — can explain embeddings, vector similarity, chunking strategy, prompt engineering, and why each piece exists
+6. **Learning velocity** — went from basic RAG to hybrid search + reranking + payments + multi-tenant auth in sequential phases
+
+7. **Understanding of the AI stack** — can explain embeddings, hybrid retrieval, reranking, chunking strategy, prompt engineering, and why each piece exists
 
 ---
 
@@ -471,16 +573,23 @@ After retrieving 10 chunks, use Cohere's reranker to select the best 4. Signific
 | Term | What It Means | Where Used |
 |------|--------------|------------|
 | RAG | Retrieve relevant context, then generate answer | Core architecture |
+| Hybrid Search | BM25 (keyword) + Pinecone (semantic) combined | rag.py |
+| Reranking | Cohere API reorders retrieved chunks by relevance | rag.py |
 | Embedding | Text converted to numbers representing meaning | Cohere API |
 | Vector | An array of numbers (1024 for Cohere) | Pinecone storage |
 | Cosine Similarity | Math that measures how similar two vectors are | Pinecone search |
+| BM25 | Classic keyword relevance algorithm | rag.py, document_chunks table |
 | Chunking | Splitting documents into small pieces | ingest.py |
 | Chunk Overlap | Consecutive chunks share some text | ingest.py |
 | LCEL | LangChain pipe syntax for building chains | rag.py |
+| EnsembleRetriever | Merges multiple retrievers' results | rag.py |
+| Namespace | Isolated space in Pinecone per document (= document UUID) | ingest.py, rag.py |
 | CORS | Browser security for cross-origin requests | main.py |
-| Lazy Loading | Initialize only when first needed | main.py |
-| Namespace | Isolated space in Pinecone per user/document | Future scaling |
+| Proration | Credit for unused days when upgrading mid-cycle | payment.py |
+| Upload Credit | Non-refundable quota consumed on upload acceptance | plan_limits.py |
+| OTP | One-time password for email verification | main.py, auth.py |
+| Magic Link | One-click email verification URL | main.py, email_service.py |
 
 ---
 
-*Built by Aditya Gupta — March 2026*
+*Built by Aditya Gupta — April 2026*
