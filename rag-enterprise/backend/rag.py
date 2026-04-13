@@ -46,6 +46,7 @@ embeddings = CohereEmbeddings(
 # Top-N candidates fetched before reranking; reranker then keeps RERANK_TOP_N.
 RETRIEVAL_K  = 10   # candidates from each retriever
 RERANK_TOP_N = 4    # final chunks passed to the LLM
+OUT_OF_CONTEXT_MESSAGE = "Seems like this question doesn't match context provided in this document."
 
 
 # ── PostgreSQL Chat History ──────────────────────────────────
@@ -130,15 +131,19 @@ def _build_bm25_retriever(db: Session, document_id: str, k: int) -> BM25Retrieve
     return retriever
 
 
-def _rerank_with_cohere(question: str, docs: list[Document], top_n: int) -> list[Document]:
+def _rerank_with_cohere(question: str, docs: list[Document], top_n: int) -> tuple[list[Document], list[float] | None]:
     """Re-rank a list of LangChain Documents using Cohere's Rerank API.
 
     Falls back to returning the original list (truncated to top_n) if the
     Cohere API key is not set or the call fails.
+
+    Returns:
+        (reranked_docs, relevance_scores)
+        relevance_scores is None when unavailable (e.g., fallback path).
     """
     api_key = os.getenv("COHERE_API_KEY")
     if not api_key or not docs:
-        return docs[:top_n]
+        return docs[:top_n], None
 
     try:
         co = cohere.Client(api_key)
@@ -150,10 +155,52 @@ def _rerank_with_cohere(question: str, docs: list[Document], top_n: int) -> list
             top_n=top_n,
         )
         reranked = [docs[result.index] for result in response.results]
-        return reranked
-    except Exception:
+        scores = [float(getattr(result, "relevance_score", 0.0) or 0.0) for result in response.results]
+        return reranked, scores
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Reranking is an enhancement — never block a query on its failure.
-        return docs[:top_n]
+        return docs[:top_n], None
+
+
+def _normalize_source_page_number(doc: Document) -> int:
+    """Normalize page metadata into human-readable 1-indexed page numbers.
+
+    Dense Pinecone retrieval commonly stores `page` as 0-indexed from PyPDFLoader.
+    BM25 chunks are persisted as 1-indexed (`document_chunks.page_num`).
+    This function unifies both into a display-safe 1-indexed page number.
+    """
+    raw_page = doc.metadata.get("page", 1)
+    try:
+        page = int(raw_page)
+    except (TypeError, ValueError):
+        return 1
+
+    # Prefer explicit page index base when present.
+    page_index_base = doc.metadata.get("page_index_base")
+    if page_index_base is None:
+        # Infer base:
+        # - BM25 docs include chunk_index and are already 1-indexed.
+        # - Dense Pinecone docs are treated as 0-indexed.
+        page_index_base = 1 if "chunk_index" in doc.metadata else 0
+
+    if page_index_base == 0:
+        page += 1
+
+    return max(page, 1)
+
+
+def _has_usable_context(reranked_docs: list[Document]) -> bool:
+    """Return True when retrieval produced at least one non-empty context chunk."""
+    if not reranked_docs:
+        return False
+    return any((doc.page_content or "").strip() for doc in reranked_docs)
+
+
+def _is_ooc_answer(answer: str) -> bool:
+    """Detect out-of-context responses so sources can be hidden."""
+    normalized = (answer or "").strip().lower()
+    expected = OUT_OF_CONTEXT_MESSAGE.strip().lower()
+    return normalized == expected
 
 
 # ── Main Query Function ──────────────────────────────────────
@@ -204,13 +251,27 @@ def query_with_sources(
         retrieved_docs = dense_retriever.invoke(question)
 
     # ── Step 4: Rerank with Cohere ───────────────────────────
-    reranked_docs = _rerank_with_cohere(question, retrieved_docs, top_n=RERANK_TOP_N)
+    reranked_docs, _relevance_scores = _rerank_with_cohere(question, retrieved_docs, top_n=RERANK_TOP_N)
 
-    # ── Step 5: Extract source citations ─────────────────────
+    # ── Step 5: Load chat history ─────────────────────────────
+    history_obj  = PostgresChatMessageHistory(db=db, user_id=user_id, document_id=document_id)
+    chat_history = history_obj.messages
+
+    # Strict fallback only when retrieval gives no usable context at all.
+    if not _has_usable_context(reranked_docs):
+        answer = OUT_OF_CONTEXT_MESSAGE
+        history_obj.add_message(HumanMessage(content=question))
+        history_obj.add_message(AIMessage(content=answer))
+        return {
+            "answer": answer,
+            "sources": [],
+        }
+
+    # ── Step 6: Extract source citations ─────────────────────
     seen = set()
     sources = []
     for doc in reranked_docs:
-        page_num = doc.metadata.get("page", 1)
+        page_num = _normalize_source_page_number(doc)
         source   = doc.metadata.get("source", "")
         if page_num not in seen:
             seen.add(page_num)
@@ -221,12 +282,8 @@ def query_with_sources(
             })
     sources.sort(key=lambda x: x["page"])
 
-    # ── Step 6: Build context for the LLM ────────────────────
+    # ── Step 7: Build context for the LLM ────────────────────
     context = "\n\n".join([doc.page_content for doc in reranked_docs])
-
-    # ── Step 7: Load chat history ─────────────────────────────
-    history_obj  = PostgresChatMessageHistory(db=db, user_id=user_id, document_id=document_id)
-    chat_history = history_obj.messages
 
     # ── Step 8: Run the LLM chain ─────────────────────────────
     llm = ChatGroq(
@@ -238,7 +295,8 @@ def query_with_sources(
     prompt = ChatPromptTemplate.from_messages([
         ("system",
          "You are a helpful assistant. Answer based ONLY on the context below.\n"
-         "Be concise and precise. If the answer is not in the context, say so.\n\n"
+         "Be concise and precise. If the question does not match the context, "
+         f"reply with EXACTLY: {OUT_OF_CONTEXT_MESSAGE}\n\n"
          "Context:\n{context}"),
         MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{question}"),
@@ -250,6 +308,11 @@ def query_with_sources(
         "chat_history": chat_history,
         "question":     question,
     })
+
+    # If the model explicitly says out-of-context, hide all citations.
+    if _is_ooc_answer(answer):
+        answer = OUT_OF_CONTEXT_MESSAGE
+        sources = []
 
     # ── Step 9: Persist conversation ─────────────────────────
     history_obj.add_message(HumanMessage(content=question))

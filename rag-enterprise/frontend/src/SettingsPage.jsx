@@ -505,7 +505,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
           {/* Usage Statistics Section */}
           <div className={`rounded-2xl border p-5 sm:p-6 ${isDark ? "bg-white/[0.06] backdrop-blur-xl border-white/[0.1]" : "bg-white/80 backdrop-blur-xl border-slate-200/50"}`}>
             <h2 className={`text-lg font-semibold mb-4 ${isDark ? "text-white" : "text-slate-900"}`}>
-              Usage This Month
+              Usage Overview
             </h2>
             
             {loadingUsage ? (
@@ -520,7 +520,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                     <div className="flex items-center gap-2">
                       <IconDocument />
                       <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-slate-700"}`}>
-                        Documents
+                        Documents Uploaded
                       </span>
                     </div>
                     <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>
@@ -541,7 +541,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                   </div>
                   {usage.documents.remaining !== "Unlimited" && (
                     <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-slate-500"}`}>
-                      {usage.documents.remaining} documents remaining
+                      {usage.documents.remaining} uploads remaining
                     </p>
                   )}
                 </div>
@@ -552,7 +552,7 @@ export default function SettingsPage({ user: initialUser, theme, token }) {
                     <div className="flex items-center gap-2">
                       <IconMessage />
                       <span className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-slate-700"}`}>
-                        Questions
+                        Questions This Month
                       </span>
                     </div>
                     <span className={`text-sm ${isDark ? "text-gray-400" : "text-slate-600"}`}>

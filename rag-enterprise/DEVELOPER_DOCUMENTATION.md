@@ -181,30 +181,37 @@ User → Frontend → POST /upload → Rate Limit Check → Plan Limit Check
                         until status = "ready" → enables chat input
 ```
 
-### Query Processing Flow
+### Query Processing Flow (Phase 5 — Hybrid Search + Reranking)
 ```
 User Question → Frontend → POST /query → Auth Check → Plan Limit Check
                                                 │
                                                 ▼
-                                   Generate Question Embedding (Cohere)
+                               ┌────────────────────────────────┐
+                               │         Hybrid Retrieval        │
+                               │  BM25 (from PostgreSQL, k=10)  │
+                               │      +                          │
+                               │  Pinecone Dense (k=10)         │
+                               │  via EnsembleRetriever          │
+                               │  weights: [0.4 BM25, 0.6 Dense]│
+                               └────────────────────────────────┘
                                                 │
                                                 ▼
-                                   Search Pinecone (top 4 chunks)
+                                   Cohere Rerank API (top-4 of ~20)
                                                 │
                                                 ▼
-                                   Build Context + Chat History
+                                   Build Context + Load Chat History (PostgreSQL)
                                                 │
                                                 ▼
-                                   Generate Answer (Groq LLM)
+                                   Generate Answer (Groq / LLaMA-3.3-70b, temp=0)
                                                 │
                                                 ▼
-                                   Extract Source Citations
+                                   Normalize Source Page Numbers
                                                 │
                                                 ▼
-                                   Save to Conversation History
+                                   Persist Q&A + Sources to PostgreSQL
                                                 │
                                                 ▼
-                                   Log Usage → Return Response
+                                   Log Usage → Return {answer, sources}
 ```
 
 ## 2.3 Component Interaction Matrix
@@ -274,19 +281,26 @@ User Question → Frontend → POST /query → Auth Check → Plan Limit Check
 
 ```
 backend/
-├── main.py                 # FastAPI app, all API endpoints
-├── database.py             # SQLAlchemy models, DB connection
-├── auth.py                 # Authentication logic, JWT, password hashing
-├── rag.py                  # RAG query pipeline
-├── ingest.py               # PDF ingestion pipeline
-├── payment.py              # Razorpay integration
+├── main.py                 # FastAPI app, all API endpoints (~1550 lines)
+├── database.py             # SQLAlchemy ORM — 8 tables + inline migrations
+├── auth.py                 # JWT + Google OAuth + OTP/magic-link verification
+├── rag.py                  # Hybrid search + Cohere reranking query pipeline
+├── ingest.py               # PDF ingestion — chunks to Pinecone + PostgreSQL
+├── payment.py              # Razorpay — orders, proration, GST
 ├── plan_limits.py          # Plan enforcement, usage tracking
-├── supabase_storage.py     # Cloud storage operations
-├── email_service.py        # Email sending (SMTP)
+├── supabase_storage.py     # Supabase Storage — PDFs + profile images
+├── email_service.py        # Email verification (console/SMTP)
 ├── cleanup_data.py         # Admin data cleanup utility
 ├── reset_db.py             # Development DB reset utility
+├── start.sh                # Render deployment entrypoint
+├── runtime.txt             # Python version for Render
 ├── requirements.txt        # Python dependencies
-└── Procfile                # Deployment command
+└── tests/
+    ├── conftest.py
+    ├── test_api.py
+    ├── test_auth.py
+    ├── test_document_upload_quota.py
+    └── test_rag_out_of_context.py
 ```
 
 ## 4.2 Module Responsibilities
@@ -322,25 +336,28 @@ backend/
   - Password strength validation
 
 ### rag.py (AI Layer)
-- **Lines:** ~120
-- **Role:** RAG query processing
+- **Lines:** ~325
+- **Role:** Hybrid RAG query processing (Phase 5)
 - **Responsibilities:**
-  - Question embedding generation
-  - Pinecone similarity search
-  - Context assembly
-  - LLM answer generation
-  - Source citation extraction
-  - Chat history management
+  - BM25 retriever built from PostgreSQL `document_chunks`
+  - Pinecone dense retrieval (semantic, k=10)
+  - EnsembleRetriever — merges BM25 (0.4) + dense (0.6) results
+  - Cohere Rerank API — selects top-4 from merged candidates
+  - Context assembly + chat history loading from PostgreSQL
+  - LLM answer generation (LLaMA-3.3-70b, temp=0)
+  - Source citation extraction with page-number normalization
+  - Out-of-context detection and sentinel response
 
 ### ingest.py (Processing Layer)
-- **Lines:** ~80
+- **Lines:** ~120
 - **Role:** Document ingestion
 - **Responsibilities:**
-  - PDF loading and text extraction
-  - Text chunking with overlap
-  - Batch embedding generation
-  - Pinecone vector storage
-  - Namespace management
+  - PDF loading and text extraction (PyPDFLoader)
+  - Text chunking with overlap (1000 chars / 200 overlap)
+  - Batch embedding generation (Cohere embed-english-v3.0)
+  - Pinecone vector storage (namespace = document UUID)
+  - Persist raw chunks to PostgreSQL `document_chunks` for BM25
+  - Namespace deletion on document removal
 
 ### payment.py (Commerce Layer)
 - **Lines:** ~100
@@ -757,10 +774,11 @@ UI transitions are centralized in `lib/animations.js` to keep motion consistent 
 │ id (PK)                    VARCHAR           UUID (=Pinecone NS)     │
 │ user_id (FK)               VARCHAR           Owner reference         │
 │ filename                   VARCHAR           Display name            │
-│ file_path                  VARCHAR           Storage path            │
+│ file_path                  VARCHAR           Supabase storage path   │
 │ file_size                  VARCHAR           Size in bytes           │
 │ chunk_count                INTEGER           Ingested chunks         │
-│ is_active                  BOOLEAN           Current context         │
+│ is_active                  BOOLEAN           Current context doc     │
+│ status                     VARCHAR           pending/ready/failed    │
 │ uploaded_at                TIMESTAMP         Upload time             │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
@@ -782,10 +800,24 @@ UI transitions are centralized in `lib/animations.js` to keep motion consistent 
 ├─────────────────────────────────────────────────────────────────────┤
 │ id (PK)                    SERIAL            Auto-increment          │
 │ user_id (FK)               VARCHAR           User reference          │
-│ action                     VARCHAR           question/upload/download│
+│ action                     VARCHAR           question/upload         │
 │ extra_data                 TEXT              JSON metadata           │
 │ created_at                 TIMESTAMP         Action timestamp        │
 └─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DOCUMENT_CHUNKS                              │
+├─────────────────────────────────────────────────────────────────────┤
+│ id (PK)                    SERIAL            Auto-increment          │
+│ document_id (FK)           VARCHAR           Parent document UUID    │
+│ content                    TEXT              Raw chunk text          │
+│ page_num                   INTEGER           1-indexed page number   │
+│ chunk_index                INTEGER           Order within document   │
+│ source                     VARCHAR           Source filename         │
+└─────────────────────────────────────────────────────────────────────┘
+Note: document_chunks powers BM25 keyword retrieval in Phase 5.
+Each row is one chunk; all rows for a document_id are loaded into
+memory at query time to build the BM25Retriever.
 ```
 
 ## 6.2 Key Relationships
@@ -944,28 +976,44 @@ HMACSHA256(
 
 # 8. RAG Pipeline
 
-## 8.1 RAG Architecture Overview
+## 8.1 RAG Architecture Overview (Phase 5 — Hybrid Search + Reranking)
 
 **RAG = Retrieval-Augmented Generation**
 
-The system combines document retrieval (finding relevant chunks) with language model generation (producing answers).
+The system combines hybrid document retrieval (BM25 keyword + Pinecone semantic) with Cohere reranking and language model generation.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        RAG PIPELINE                                  │
+│                   RAG PIPELINE (Phase 5)                             │
 │                                                                      │
-│  ┌───────────┐     ┌───────────┐     ┌───────────┐     ┌─────────┐ │
-│  │  Question │ →   │  Embed    │ →   │  Search   │ →   │ Retrieve│ │
-│  │           │     │  (Cohere) │     │ (Pinecone)│     │ Top 4   │ │
-│  └───────────┘     └───────────┘     └───────────┘     └────┬────┘ │
-│                                                              │      │
-│                                                              ▼      │
-│  ┌───────────┐     ┌───────────┐     ┌───────────────────────────┐ │
-│  │  Answer   │ ←   │  Generate │ ←   │  Context + Chat History   │ │
-│  │           │     │  (Groq)   │     │                           │ │
-│  └───────────┘     └───────────┘     └───────────────────────────┘ │
+│  ┌───────────┐   ┌──────────────────────────────────┐               │
+│  │  Question │ → │         Hybrid Retrieval          │               │
+│  └───────────┘   │  ┌────────────┐  ┌────────────┐  │               │
+│                  │  │BM25 (k=10) │  │Pinecone    │  │               │
+│                  │  │PostgreSQL  │  │Dense (k=10)│  │               │
+│                  │  │weight: 0.4 │  │weight: 0.6 │  │               │
+│                  │  └────────────┘  └────────────┘  │               │
+│                  │        EnsembleRetriever          │               │
+│                  └──────────────────────────────────┘               │
+│                                    │ ~20 candidates                  │
+│                                    ▼                                 │
+│                         ┌──────────────────┐                         │
+│                         │  Cohere Rerank   │ → top-4 chunks          │
+│                         │ rerank-english-  │                         │
+│                         │    v3.0          │                         │
+│                         └──────────────────┘                         │
+│                                    │                                 │
+│                                    ▼                                 │
+│  ┌───────────┐     ┌───────────┐  ┌───────────────────────────────┐ │
+│  │  Answer + │ ←   │  Generate │← │  Context + PostgreSQL History │ │
+│  │  Sources  │     │  (Groq)   │  │                               │ │
+│  └───────────┘     └───────────┘  └───────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+**Constants:**
+- `RETRIEVAL_K = 10` — candidates fetched from each retriever
+- `RERANK_TOP_N = 4` — final chunks passed to the LLM
 
 ## 8.2 Document Ingestion Pipeline
 
@@ -992,72 +1040,102 @@ embeddings = CohereEmbeddings(model="embed-english-v3.0")
 # Converts each chunk text → 1024-dimensional vector
 ```
 
-### Step 4: Vector Storage
+### Step 4: Vector Storage (Pinecone)
 ```python
-Pinecone.from_documents(
-    documents=chunks,
-    embedding=embeddings,
+PineconeVectorStore.from_documents(
+    chunks,
+    embeddings,
     index_name=PINECONE_INDEX_NAME,
     namespace=document_id    # Isolates each document
 )
 ```
 
-## 8.3 Query Processing Pipeline
-
-### Step 1: Question Embedding
+### Step 5: Persist Chunks to PostgreSQL (for BM25)
 ```python
-question_vector = embeddings.embed_query(question)
-```
-
-### Step 2: Similarity Search
-```python
-index = pinecone.Index(PINECONE_INDEX_NAME)
-results = index.query(
-    vector=question_vector,
-    namespace=document_id,
-    top_k=4,                 # Retrieve top 4 matches
-    include_metadata=True
+# Saves raw text chunks to document_chunks table
+DocumentChunk(
+    document_id=document_id,
+    content=chunk.page_content,
+    page_num=chunk.metadata.get("page", 1),
+    chunk_index=i,
+    source=chunk.metadata.get("source", "")
 )
 ```
+This enables BM25 keyword retrieval at query time without re-fetching from Pinecone.
 
-### Step 3: Context Assembly
+## 8.3 Query Processing Pipeline (Phase 5)
+
+### Step 1: Dense Retriever (Pinecone)
 ```python
-context = "\n\n".join([
-    f"[Page {r.metadata['page']}]: {r.metadata['text']}"
-    for r in results.matches
-])
+vectorstore = PineconeVectorStore(
+    index_name=os.getenv("PINECONE_INDEX_NAME"),
+    embedding=embeddings,
+    namespace=namespace,      # = document_id (UUID)
+)
+dense_retriever = vectorstore.as_retriever(search_kwargs={"k": RETRIEVAL_K})
 ```
 
-### Step 4: LLM Generation
+### Step 2: Sparse Retriever (BM25 from PostgreSQL)
 ```python
-llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0            # Deterministic output
-)
+# Load chunks from DB, build in-memory BM25 retriever
+rows = db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).all()
+bm25_retriever = BM25Retriever.from_documents(langchain_docs)
+bm25_retriever.k = RETRIEVAL_K
+# Returns None for legacy documents — pipeline falls back to dense-only
+```
 
+### Step 3: Hybrid Retrieval via EnsembleRetriever
+```python
+ensemble_retriever = EnsembleRetriever(
+    retrievers=[bm25_retriever, dense_retriever],
+    weights=[0.4, 0.6],   # Dense weighted higher — meaning matters more than exact match
+)
+retrieved_docs = ensemble_retriever.invoke(question)
+# Returns up to 20 candidates (10 from each retriever, deduplicated)
+```
+
+### Step 4: Cohere Reranking
+```python
+co = cohere.Client(api_key)
+response = co.rerank(
+    model="rerank-english-v3.0",
+    query=question,
+    documents=[doc.page_content for doc in retrieved_docs],
+    top_n=RERANK_TOP_N,   # Keep top-4
+)
+reranked_docs = [retrieved_docs[r.index] for r in response.results]
+# Gracefully falls back to retrieved_docs[:4] if Cohere call fails
+```
+
+### Step 5: Context Assembly + LLM Generation
+```python
+context = "\n\n".join([doc.page_content for doc in reranked_docs])
+
+llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant. Use the context to answer.\n\nContext:\n{context}"),
+    ("system",
+     "Answer based ONLY on the context below.\n"
+     f"If the question doesn't match the context, reply EXACTLY: {OUT_OF_CONTEXT_MESSAGE}\n\n"
+     "Context:\n{context}"),
     MessagesPlaceholder(variable_name="chat_history"),
-    ("human", "{question}")
+    ("human", "{question}"),
 ])
-
 chain = prompt | llm | StrOutputParser()
-answer = chain.invoke({
-    "context": context,
-    "chat_history": previous_messages,
-    "question": user_question
-})
+answer = chain.invoke({"context": context, "chat_history": history, "question": question})
 ```
 
-### Step 5: Source Extraction
+### Step 6: Source Citation Extraction
 ```python
-sources = [
-    {
-        "page": result.metadata["page"],
-        "content": result.metadata["text"][:200]  # Excerpt
-    }
-    for result in results.matches
-]
+# Page number normalization: BM25 chunks are 1-indexed, Pinecone chunks are 0-indexed
+def _normalize_source_page_number(doc):
+    raw_page = doc.metadata.get("page", 1)
+    page_index_base = 1 if "chunk_index" in doc.metadata else 0  # BM25 vs dense
+    return max(int(raw_page) + (0 if page_index_base == 1 else 1), 1)
+
+sources = [{"page": page_num, "source": source, "content": doc.page_content[:300]}
+           for doc in reranked_docs]
+sources.sort(key=lambda x: x["page"])
+# Sources hidden entirely if LLM returns OUT_OF_CONTEXT_MESSAGE
 ```
 
 ## 8.4 Namespace Isolation
@@ -1402,7 +1480,13 @@ PLAN_LIMITS = {
 ### Document Upload (/upload)
 ```python
 def check_document_limit(db: Session, user_id: str, plan: str):
-    count = db.query(Document).filter(Document.user_id == user_id).count()
+    # Counts lifetime upload events, NOT active documents.
+    # Deleting a document does NOT refund the upload credit.
+    # This prevents the quota exploit of delete + re-upload.
+    count = db.query(UsageLog).filter(
+        UsageLog.user_id == user_id,
+        UsageLog.action == "upload"
+    ).count()
     limit = PLAN_LIMITS[plan]["max_documents"]
     
     if count >= limit:
@@ -1672,21 +1756,32 @@ Ask question about active document (rate limit: 20/day)
 ### GET /history
 Get chat history for active document
 
-## 11.5 Payment Endpoints
+## 11.5 Payment & Subscription Endpoints
+
+### GET /payment/prices
+Get current plan prices (public, no auth required)
+
+### GET /payment/calculate-upgrade
+Preview prorated cost for a plan change before creating an order.
+
+**Query params:** `plan`, `billing_cycle`
+
+**Response includes:** base price, proration credit, coupon discount, GST, and final total.
 
 ### POST /payment/create-order
-Create Razorpay order
+Create Razorpay order (with optional coupon, rate limit: 5/min)
 
 **Request:**
 ```json
 {
   "plan": "pro",
-  "billing_cycle": "yearly"
+  "billing_cycle": "yearly",
+  "coupon_code": "LAUNCH50"
 }
 ```
 
 ### POST /payment/verify
-Verify payment and upgrade plan
+Verify Razorpay signature and activate plan (rate limit: 10/min)
 
 **Request:**
 ```json
@@ -1695,15 +1790,91 @@ Verify payment and upgrade plan
   "razorpay_payment_id": "pay_xxx",
   "razorpay_signature": "signature_hash",
   "plan": "pro",
-  "billing_cycle": "yearly"
+  "billing_cycle": "yearly",
+  "coupon_code": "LAUNCH50"
 }
 ```
 
-### GET /payment/prices
-Get current pricing
+### POST /coupon/validate
+Validate a coupon code and preview discount amount
+
+**Request:**
+```json
+{
+  "code": "LAUNCH50",
+  "plan": "pro",
+  "billing_cycle": "monthly"
+}
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "code": "LAUNCH50",
+  "discount_type": "percentage",
+  "discount_value": 50,
+  "discount_amount": 1499.5,
+  "message": "Coupon applied! You save ₹1500"
+}
+```
+
+### POST /subscription/cancel
+Cancel subscription — remains active until `plan_expires_at`
+
+### GET /billing/history
+Get last 20 successful payments with GST breakdown
 
 ### GET /usage
-Get usage statistics
+Get usage summary (docs used, questions used, limits, features)
+
+## 11.6 Analytics Endpoint
+
+### GET /analytics
+Returns per-user usage analytics for the current user.
+
+**Response:**
+```json
+{
+  "monthly": {
+    "queries": 42,
+    "uploads": 3,
+    "month": "April 2026"
+  },
+  "all_time": {
+    "queries": 215,
+    "documents": 18
+  },
+  "daily_trend": [
+    {"date": "2026-03-15", "queries": 5},
+    {"date": "2026-03-16", "queries": 12}
+  ],
+  "top_documents": [
+    {"document_id": "uuid...", "filename": "contract.pdf", "query_count": 38}
+  ]
+}
+```
+
+## 11.7 Admin Endpoint
+
+### POST /admin/cleanup-data
+Delete users, documents, conversations, and optionally Pinecone vectors.
+
+**Required header:** `Authorization: Bearer <ADMIN_SECRET>`
+
+**Request body:**
+```json
+{
+  "mode": "all",
+  "email_filter": null,
+  "delete_upload_files": true,
+  "skip_pinecone": false,
+  "confirm": false
+}
+```
+
+- `mode`: `"all"` (all users), `"test"` (emails containing "test"), or `""` with `email_filter`
+- `confirm`: `false` = dry-run; `true` = execute
 
 ---
 
@@ -1736,26 +1907,43 @@ results = index.query(vector=query_vec, top_k=4, namespace=doc_id)
 index.delete(delete_all=True, namespace=doc_id)
 ```
 
-## 12.2 Cohere (Embeddings)
+## 12.2 Cohere (Embeddings + Reranking)
 
-**Purpose:** Convert text to vectors
+**Purpose:** Convert text to vectors (ingestion + query) and rerank retrieved chunks (query)
 
 **Configuration:**
 ```
 COHERE_API_KEY=your_api_key
 ```
 
-**Model:** `embed-english-v3.0`
-- Dimension: 1024
-- Max tokens: 512 per text
+**Embeddings — `embed-english-v3.0`**
+- Output dimension: 1024
+- Used at ingestion (chunks) and query time (question embedding for Pinecone)
 
-**Usage:**
 ```python
 from langchain_cohere import CohereEmbeddings
 
 embeddings = CohereEmbeddings(model="embed-english-v3.0")
-vector = embeddings.embed_query("Hello world")  # Returns list[float]
+vector = embeddings.embed_query("Hello world")      # Returns list[float]
 vectors = embeddings.embed_documents(["text1", "text2"])  # Batch
+```
+
+**Reranking — `rerank-english-v3.0`**
+- Takes the merged BM25 + Pinecone candidates (~20) and reorders by relevance
+- Keeps top `RERANK_TOP_N = 4` chunks to pass to the LLM
+- Gracefully falls back to first-4 of the merged list if the API call fails
+
+```python
+import cohere
+
+co = cohere.Client(os.getenv("COHERE_API_KEY"))
+response = co.rerank(
+    model="rerank-english-v3.0",
+    query=question,
+    documents=[doc.page_content for doc in retrieved_docs],
+    top_n=4,
+)
+reranked = [retrieved_docs[r.index] for r in response.results]
 ```
 
 ## 12.3 Groq (LLM)
@@ -1870,20 +2058,21 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 ```bash
 JWT_SECRET=your-secret-key-at-least-32-characters-long
 GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+FRONTEND_URL=https://rag-enterprise.vercel.app  # Used in magic-link emails
 ```
 
 ### AI Services
 ```bash
-COHERE_API_KEY=your_cohere_api_key
+COHERE_API_KEY=your_cohere_api_key      # Used for embeddings AND reranking
 GROQ_API_KEY=your_groq_api_key
 PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_INDEX_NAME=docmind-index
+PINECONE_INDEX_NAME=rag-enterprise      # Must match your Pinecone index name
 ```
 
 ### Storage
 ```bash
 SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_KEY=your_service_role_key
+SUPABASE_KEY=your_supabase_anon_or_service_key
 ```
 
 ### Payments
@@ -1892,26 +2081,26 @@ RAZORPAY_KEY_ID=rzp_test_xxx
 RAZORPAY_KEY_SECRET=your_secret
 ```
 
-### Email (Optional)
+### Admin
 ```bash
-EMAIL_MODE=smtp  # or "console" for development
+ADMIN_SECRET=super-secret-admin-key     # Bearer token for /admin/* endpoints
+```
+
+### Email
+```bash
+EMAIL_MODE=console                      # "console" (dev) or "smtp" (prod)
+EMAIL_FROM=no-reply@yourdomain.com
+# Required when EMAIL_MODE=smtp:
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your@email.com
 SMTP_PASSWORD=app_specific_password
-EMAIL_FROM=noreply@docmind.app
-APP_NAME=DocMind
-```
-
-### Admin (Optional)
-```bash
-ADMIN_SECRET=super-secret-admin-key
 ```
 
 ## 13.2 Frontend Environment Variables
 
 ```bash
-VITE_API_URL=http://localhost:8000  # or production URL
+VITE_API_URL=http://localhost:8000      # or production URL
 VITE_GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
 VITE_RAZORPAY_KEY_ID=rzp_test_xxx
 ```
@@ -1924,26 +2113,29 @@ DATABASE_URL=postgresql://postgres:password@localhost:5432/docmind
 
 # Auth
 JWT_SECRET=change-this-to-a-very-long-random-string-at-least-32-chars
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+FRONTEND_URL=http://localhost:5173
 
 # AI Services
 COHERE_API_KEY=xxx
 GROQ_API_KEY=xxx
 PINECONE_API_KEY=xxx
-PINECONE_INDEX_NAME=docmind-index
+PINECONE_INDEX_NAME=rag-enterprise
 
 # Storage
 SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SERVICE_KEY=xxx
+SUPABASE_KEY=xxx
 
 # Payments
 RAZORPAY_KEY_ID=rzp_test_xxx
 RAZORPAY_KEY_SECRET=xxx
 
-# Google OAuth
-GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+# Admin
+ADMIN_SECRET=change-in-production
 
-# Email (development)
+# Email (development — prints to console)
 EMAIL_MODE=console
+EMAIL_FROM=no-reply@docmind.app
 ```
 
 ---

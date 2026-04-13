@@ -50,6 +50,20 @@ def get_user_document_count(db: Session, user_id: str) -> int:
     ).count()
 
 
+def get_user_uploaded_documents_count(db: Session, user_id: str) -> int:
+    """Count lifetime accepted upload events for a user.
+
+    This is intentionally not reduced by document deletion. It enforces
+    plan quota as upload credits consumed, protecting business limits.
+    """
+    from database import UsageLog
+
+    return db.query(UsageLog).filter(
+        UsageLog.user_id == user_id,
+        UsageLog.action == "upload"
+    ).count()
+
+
 def get_user_questions_this_month(db: Session, user_id: str) -> int:
     """Count questions asked this month by user"""
     from database import UsageLog
@@ -70,7 +84,7 @@ def get_user_questions_this_month(db: Session, user_id: str) -> int:
 def check_document_limit(db: Session, user_id: str, plan: str) -> dict:
     """Check if user can upload more documents"""
     limits = get_plan_limits(plan)
-    current_count = get_user_document_count(db, user_id)
+    current_count = get_user_uploaded_documents_count(db, user_id)
     max_docs = limits["max_documents"]
     
     can_upload = current_count < max_docs if max_docs != float('inf') else True

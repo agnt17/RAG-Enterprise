@@ -205,7 +205,12 @@ export default function App() {
       const { messages: saved, document: savedDoc } = res.data
       setUploadedFile(savedDoc)
       setMessages(saved.length > 0
-        ? saved.map(m => ({ role: m.type === "human" ? "user" : "ai", text: m.content, sources: [], time: formatTimestamp(m.timestamp) }))
+        ? saved.map(m => ({
+            role: m.type === "human" ? "user" : "ai",
+            text: m.content,
+            sources: m.sources || [],
+            time: formatTimestamp(m.timestamp)
+          }))
         : [{ role: "system", text: `Switched to "${savedDoc.filename}". Ask me anything!`, sources: [], time: getTime() }]
       )
       setDocuments(prev => prev.map(d => ({ ...d, is_active: d.id === doc.id })))
@@ -243,7 +248,12 @@ export default function App() {
       if (res.data.new_active) {
         setUploadedFile(res.data.new_active)
         setMessages(res.data.messages.length > 0
-          ? res.data.messages.map(m => ({ role: m.type === "human" ? "user" : "ai", text: m.content, sources: [], time: formatTimestamp(m.timestamp) }))
+          ? res.data.messages.map(m => ({
+              role: m.type === "human" ? "user" : "ai",
+              text: m.content,
+              sources: m.sources || [],
+              time: formatTimestamp(m.timestamp)
+            }))
           : [{ role: "system", text: `Switched to "${res.data.new_active.filename}".`, sources: [], time: getTime() }]
         )
         setDocuments(prev => prev.map(d => ({ ...d, is_active: d.id === res.data.new_active.id })))
