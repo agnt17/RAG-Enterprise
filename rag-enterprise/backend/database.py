@@ -214,10 +214,82 @@ def _ensure_document_columns():
             connection.execute(text("ALTER TABLE documents ADD COLUMN status VARCHAR DEFAULT 'ready'"))
             connection.execute(text("UPDATE documents SET status = 'ready' WHERE status IS NULL"))
 
+
+def _ensure_coupon_columns():
+    inspector = inspect(engine)
+    if "coupons" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("coupons")}
+    migration_sql = {
+        "applicable_plans": "ALTER TABLE coupons ADD COLUMN applicable_plans VARCHAR",
+        "min_amount": "ALTER TABLE coupons ADD COLUMN min_amount FLOAT DEFAULT 0",
+        "max_uses": "ALTER TABLE coupons ADD COLUMN max_uses INTEGER",
+        "used_count": "ALTER TABLE coupons ADD COLUMN used_count INTEGER DEFAULT 0",
+        "per_user_limit": "ALTER TABLE coupons ADD COLUMN per_user_limit INTEGER DEFAULT 1",
+        "valid_from": "ALTER TABLE coupons ADD COLUMN valid_from TIMESTAMP",
+        "valid_until": "ALTER TABLE coupons ADD COLUMN valid_until TIMESTAMP",
+        "is_active": "ALTER TABLE coupons ADD COLUMN is_active BOOLEAN DEFAULT TRUE",
+        "created_at": "ALTER TABLE coupons ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    }
+
+    with engine.begin() as connection:
+        for column_name, sql in migration_sql.items():
+            if column_name in existing_columns:
+                continue
+            connection.execute(text(sql))
+
+
+def _ensure_coupon_usage_columns():
+    inspector = inspect(engine)
+    if "coupon_usages" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("coupon_usages")}
+    migration_sql = {
+        "used_at": "ALTER TABLE coupon_usages ADD COLUMN used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    }
+
+    with engine.begin() as connection:
+        for column_name, sql in migration_sql.items():
+            if column_name in existing_columns:
+                continue
+            connection.execute(text(sql))
+
+
+def _ensure_payment_columns():
+    inspector = inspect(engine)
+    if "payments" not in inspector.get_table_names():
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("payments")}
+    migration_sql = {
+        "razorpay_order_id": "ALTER TABLE payments ADD COLUMN razorpay_order_id VARCHAR",
+        "razorpay_payment_id": "ALTER TABLE payments ADD COLUMN razorpay_payment_id VARCHAR",
+        "billing_cycle": "ALTER TABLE payments ADD COLUMN billing_cycle VARCHAR",
+        "base_amount": "ALTER TABLE payments ADD COLUMN base_amount FLOAT",
+        "discount_amount": "ALTER TABLE payments ADD COLUMN discount_amount FLOAT DEFAULT 0",
+        "gst_amount": "ALTER TABLE payments ADD COLUMN gst_amount FLOAT",
+        "coupon_code": "ALTER TABLE payments ADD COLUMN coupon_code VARCHAR",
+        "status": "ALTER TABLE payments ADD COLUMN status VARCHAR DEFAULT 'pending'",
+        "payment_method": "ALTER TABLE payments ADD COLUMN payment_method VARCHAR",
+        "created_at": "ALTER TABLE payments ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "completed_at": "ALTER TABLE payments ADD COLUMN completed_at TIMESTAMP",
+    }
+
+    with engine.begin() as connection:
+        for column_name, sql in migration_sql.items():
+            if column_name in existing_columns:
+                continue
+            connection.execute(text(sql))
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
     _ensure_user_columns()
     _ensure_document_columns()
+    _ensure_coupon_columns()
+    _ensure_coupon_usage_columns()
+    _ensure_payment_columns()
 
 def ensure_user_columns():
     """Add new columns to existing users table if they don't exist"""
