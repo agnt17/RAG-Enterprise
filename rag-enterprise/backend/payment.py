@@ -24,8 +24,8 @@ except ImportError:
     RAZORPAY_AVAILABLE = False
     print("Warning: razorpay package not installed. Payment features will be disabled.")
 
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+RAZORPAY_KEY_ID = (os.getenv("RAZORPAY_KEY_ID") or "").strip() or None
+RAZORPAY_KEY_SECRET = (os.getenv("RAZORPAY_KEY_SECRET") or "").strip() or None
 
 # GST rate (18% in India)
 GST_RATE = 0.18

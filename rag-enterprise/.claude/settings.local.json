@@ -6,7 +6,9 @@
       "Bash(npm install:*)",
       "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies['framer-motion']\\)\")",
       "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies['lucide-react']\\)\")",
-      "WebFetch(domain:ssscript.app)"
+      "WebFetch(domain:ssscript.app)",
+      "Bash(python -c \"import razorpay; help\\(razorpay.errors\\)\")",
+      "Bash(python3 -c \"import razorpay; import inspect; print\\(inspect.getsource\\(razorpay.errors\\)\\)\")"
     ]
   }
 }
