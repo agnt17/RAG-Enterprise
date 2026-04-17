@@ -1526,4 +1526,13 @@ async def get_analytics(
 # ── Health ─────────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    from payment import RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_AVAILABLE
+    return {
+        "status": "ok",
+        "razorpay": {
+            "sdk_installed": RAZORPAY_AVAILABLE,
+            "key_id_set": bool(RAZORPAY_KEY_ID),
+            "key_id_prefix": RAZORPAY_KEY_ID[:10] if RAZORPAY_KEY_ID else None,
+            "key_secret_set": bool(RAZORPAY_KEY_SECRET),
+        }
+    }
