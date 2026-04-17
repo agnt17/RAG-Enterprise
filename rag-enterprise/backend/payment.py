@@ -240,7 +240,8 @@ def create_order(plan: str, billing_cycle: str, user_email: str, amount_paise: i
     return {
         "order_id": order["id"],
         "amount": order["amount"],
-        "currency": order["currency"]
+        "currency": order["currency"],
+        "key_id": RAZORPAY_KEY_ID
     }
 
 

@@ -241,15 +241,17 @@ class TestBillingHistoryEndpoint:
     def test_billing_history_returns_empty_for_new_user(self, client, registered_user):
         """
         WHY: New users have no billing history.
-        WHAT: Should return empty array.
+        WHAT: Should return payload with empty payments list.
         """
         response = client.get("/billing/history", headers=registered_user["headers"])
         
         assert response.status_code == 200
         data = response.json()
         
-        assert isinstance(data, list)
-        assert len(data) == 0
+        assert isinstance(data, dict)
+        assert "payments" in data
+        assert data["payments"] == []
+        assert "current_plan" in data
 
 
 class TestProfileEndpoints:

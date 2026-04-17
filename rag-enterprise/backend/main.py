@@ -974,8 +974,136 @@ async def delete_document(
 # ── Payment Endpoints ──────────────────────────────────────
 from payment import (
     create_order, verify_payment_signature, is_razorpay_configured, 
-    calculate_expiry_date, get_plan_level, PLAN_PRICES, calculate_proration, GST_RATE
+    get_plan_level, PLAN_PRICES, calculate_proration
 )
+
+def _validate_paid_plan_and_cycle(plan: str, billing_cycle: str) -> None:
+    if plan not in ["basic", "pro"]:
+        raise HTTPException(400, "Invalid plan. Choose 'basic' or 'pro'.")
+
+    if billing_cycle not in ["monthly", "yearly"]:
+        raise HTTPException(400, "Invalid billing cycle. Choose 'monthly' or 'yearly'.")
+
+
+def _validate_plan_transition(current_user: User, plan: str, billing_cycle: str) -> None:
+    current_plan_level = get_plan_level(current_user.plan)
+    new_plan_level = get_plan_level(plan)
+    current_billing_cycle = current_user.billing_cycle or "monthly"
+
+    is_same_plan = plan == current_user.plan
+    is_same_cycle = billing_cycle == current_billing_cycle
+    is_lower_tier = new_plan_level < current_plan_level
+
+    if is_same_plan and is_same_cycle:
+        raise HTTPException(400, "You're already on this plan with this billing cycle.")
+
+    if is_same_plan and current_billing_cycle == "yearly" and billing_cycle == "monthly":
+        raise HTTPException(400, "Cannot switch from yearly to monthly billing. Your yearly plan is a better value!")
+
+    if is_lower_tier and billing_cycle == "monthly":
+        raise HTTPException(400, "Cannot downgrade to a lower tier monthly plan.")
+
+    if is_lower_tier and current_billing_cycle == "yearly":
+        raise HTTPException(400, "Cannot switch to a lower tier when you're already on yearly billing. Your current plan offers more value!")
+
+
+def _get_actual_amount_paid(db: Session, current_user: User) -> float | None:
+    if current_user.plan == "free" or not current_user.plan_started_at:
+        return None
+
+    current_billing_cycle = current_user.billing_cycle or "monthly"
+    latest_payment = db.query(Payment).filter(
+        Payment.user_id == current_user.id,
+        Payment.plan == current_user.plan,
+        Payment.billing_cycle == current_billing_cycle,
+        Payment.status == "success"
+    ).order_by(Payment.completed_at.desc()).first()
+
+    if latest_payment:
+        return latest_payment.amount
+
+    return None
+
+
+def _calculate_upgrade_breakdown(db: Session, current_user: User, plan: str, billing_cycle: str) -> dict:
+    actual_amount_paid = _get_actual_amount_paid(db, current_user)
+    return calculate_proration(
+        current_plan=current_user.plan,
+        current_billing_cycle=current_user.billing_cycle or "monthly",
+        plan_started_at=current_user.plan_started_at,
+        plan_expires_at=current_user.plan_expires_at,
+        new_plan=plan,
+        new_billing_cycle=billing_cycle,
+        actual_amount_paid=actual_amount_paid
+    )
+
+
+def _calculate_coupon_discount(coupon: Coupon, subtotal: float) -> float:
+    if subtotal <= 0:
+        return 0.0
+
+    if coupon.discount_type == "percentage":
+        return round(subtotal * (coupon.discount_value / 100), 2)
+
+    return round(min(coupon.discount_value, subtotal), 2)
+
+
+def _validate_coupon_for_subtotal(
+    db: Session,
+    current_user: User,
+    code: str | None,
+    plan: str,
+    subtotal: float,
+    *,
+    require_code: bool = False
+) -> tuple[Coupon | None, str | None, float]:
+    normalized_code = (code or "").strip().upper()
+
+    if not normalized_code:
+        if require_code:
+            raise HTTPException(400, "Uh oh... we couldn't find that coupon code. Please check and try again!")
+        return None, None, 0.0
+
+    coupon = db.query(Coupon).filter(Coupon.id == normalized_code).first()
+    if not coupon:
+        raise HTTPException(400, "Uh oh... we couldn't find that coupon code. Please check and try again!")
+
+    if not coupon.is_active:
+        raise HTTPException(400, "Uh oh... this coupon is no longer active. Try another one!")
+
+    now = datetime.utcnow()
+    if coupon.valid_from and coupon.valid_from > now:
+        raise HTTPException(400, "Hmm... this coupon isn't active yet. Come back soon!")
+
+    if coupon.valid_until and coupon.valid_until < now:
+        raise HTTPException(400, "Uh oh... seems like this coupon has expired. Try another one!")
+
+    if coupon.max_uses and coupon.used_count >= coupon.max_uses:
+        raise HTTPException(400, "Oh no! This coupon has been fully redeemed. Try another one!")
+
+    if coupon.per_user_limit and coupon.per_user_limit > 0:
+        user_usage_count = db.query(CouponUsage).filter(
+            CouponUsage.coupon_id == normalized_code,
+            CouponUsage.user_id == current_user.id
+        ).count()
+
+        if user_usage_count >= coupon.per_user_limit:
+            raise HTTPException(400, "You've already used this coupon! Each coupon can only be used once.")
+
+    if coupon.applicable_plans:
+        try:
+            applicable = json.loads(coupon.applicable_plans)
+            if isinstance(applicable, list) and plan not in applicable:
+                plan_name = plan.capitalize()
+                raise HTTPException(400, f"Oops! This coupon doesn't work for the {plan_name} plan. Try it with another plan!")
+        except json.JSONDecodeError:
+            pass
+
+    if coupon.min_amount and subtotal < coupon.min_amount:
+        raise HTTPException(400, f"This coupon requires a minimum order of ₹{int(coupon.min_amount)}. Try a yearly plan!")
+
+    discount = _calculate_coupon_discount(coupon, subtotal)
+    return coupon, normalized_code, discount
 
 @app.get("/payment/calculate-upgrade")
 async def calculate_upgrade_price(
@@ -1002,68 +1130,9 @@ async def calculate_upgrade_price(
     
     Returns full price breakdown including GST.
     """
-    if plan not in ["basic", "pro"]:
-        raise HTTPException(400, "Invalid plan. Choose 'basic' or 'pro'.")
-    
-    if billing_cycle not in ["monthly", "yearly"]:
-        raise HTTPException(400, "Invalid billing cycle. Choose 'monthly' or 'yearly'.")
-    
-    current_plan_level = get_plan_level(current_user.plan)
-    new_plan_level = get_plan_level(plan)
-    current_billing_cycle = current_user.billing_cycle or "monthly"
-    
-    # Check if this is a valid transition
-    is_same_plan = plan == current_user.plan
-    is_same_cycle = billing_cycle == current_billing_cycle
-    is_lower_tier = new_plan_level < current_plan_level
-    is_higher_tier = new_plan_level > current_plan_level
-    
-    # Block: same plan + same cycle
-    if is_same_plan and is_same_cycle:
-        raise HTTPException(400, "You're already on this plan with this billing cycle.")
-    
-    # Block: same plan + yearly → monthly (downgrade billing cycle)
-    if is_same_plan and current_billing_cycle == "yearly" and billing_cycle == "monthly":
-        raise HTTPException(400, "Cannot switch from yearly to monthly billing. Your yearly plan is a better value!")
-    
-    # Block: lower tier + monthly (pure downgrade)
-    if is_lower_tier and billing_cycle == "monthly":
-        raise HTTPException(400, "Cannot downgrade to a lower tier monthly plan.")
-    
-    # Block: lower tier + yearly IF user is already on yearly billing
-    # Business logic: They already committed yearly at higher tier, switching to lower yearly = refund
-    if is_lower_tier and current_billing_cycle == "yearly":
-        raise HTTPException(400, "Cannot switch to a lower tier when you're already on yearly billing. Your current plan offers more value!")
-    
-    # CRITICAL: Fetch actual amount paid for current plan (prevents coupon exploit)
-    # Get the most recent successful payment for current plan
-    actual_amount_paid = None
-    if current_user.plan != "free" and current_user.plan_started_at:
-        latest_payment = db.query(Payment).filter(
-            Payment.user_id == current_user.id,
-            Payment.plan == current_user.plan,
-            Payment.billing_cycle == current_user.billing_cycle,
-            Payment.status == "success"
-        ).order_by(Payment.completed_at.desc()).first()
-        
-        if latest_payment:
-            # Use the total amount actually paid (includes GST, after all discounts)
-            actual_amount_paid = latest_payment.amount
-    
-    # Allow: same plan + monthly → yearly (billing cycle upgrade)
-    # Allow: higher tier (any cycle)
-    # Allow: lower tier + yearly ONLY if user is on monthly (yearly commitment is valuable)
-    
-    # Calculate proration using ACTUAL amount paid
-    breakdown = calculate_proration(
-        current_plan=current_user.plan,
-        current_billing_cycle=current_user.billing_cycle or "monthly",
-        plan_started_at=current_user.plan_started_at,
-        plan_expires_at=current_user.plan_expires_at,
-        new_plan=plan,
-        new_billing_cycle=billing_cycle,
-        actual_amount_paid=actual_amount_paid  # Pass actual paid amount
-    )
+    _validate_paid_plan_and_cycle(plan, billing_cycle)
+    _validate_plan_transition(current_user, plan, billing_cycle)
+    breakdown = _calculate_upgrade_breakdown(db, current_user, plan, billing_cycle)
     
     return {
         **breakdown,
@@ -1090,80 +1159,26 @@ async def create_payment_order(
     """Create a Razorpay order for subscription with proration"""
     if not is_razorpay_configured():
         raise HTTPException(500, "Payment service not configured. Please contact support.")
-    
-    if req.plan not in ["basic", "pro"]:
-        raise HTTPException(400, "Invalid plan. Choose 'basic' or 'pro'.")
-    
-    if req.billing_cycle not in ["monthly", "yearly"]:
-        raise HTTPException(400, "Invalid billing cycle. Choose 'monthly' or 'yearly'.")
-    
-    # Check if this is a valid transition
-    current_plan_level = get_plan_level(current_user.plan)
-    new_plan_level = get_plan_level(req.plan)
-    current_billing_cycle = current_user.billing_cycle or "monthly"
-    
-    is_same_plan = req.plan == current_user.plan
-    is_same_cycle = req.billing_cycle == current_billing_cycle
-    is_lower_tier = new_plan_level < current_plan_level
-    
-    # Block: same plan + same cycle
-    if is_same_plan and is_same_cycle:
-        raise HTTPException(400, "You're already on this plan with this billing cycle.")
-    
-    # Block: same plan + yearly → monthly (downgrade billing cycle)
-    if is_same_plan and current_billing_cycle == "yearly" and req.billing_cycle == "monthly":
-        raise HTTPException(400, "Cannot switch from yearly to monthly billing.")
-    
-    # Block: lower tier + monthly (pure downgrade)
-    if is_lower_tier and req.billing_cycle == "monthly":
-        raise HTTPException(400, "Cannot downgrade to a lower tier monthly plan.")
-    
-    # Block: lower tier + yearly IF user is already on yearly billing
-    if is_lower_tier and current_billing_cycle == "yearly":
-        raise HTTPException(400, "Cannot switch to a lower tier when you're already on yearly billing.")
+
+    _validate_paid_plan_and_cycle(req.plan, req.billing_cycle)
+    _validate_plan_transition(current_user, req.plan, req.billing_cycle)
     
     try:
-        # CRITICAL: Fetch actual amount paid for current plan (prevents coupon exploit)
-        actual_amount_paid = None
-        if current_user.plan != "free" and current_user.plan_started_at:
-            latest_payment = db.query(Payment).filter(
-                Payment.user_id == current_user.id,
-                Payment.plan == current_user.plan,
-                Payment.billing_cycle == current_user.billing_cycle,
-                Payment.status == "success"
-            ).order_by(Payment.completed_at.desc()).first()
-            
-            if latest_payment:
-                actual_amount_paid = latest_payment.amount
-        
-        # Calculate prorated amount using ACTUAL paid amount
-        breakdown = calculate_proration(
-            current_plan=current_user.plan,
-            current_billing_cycle=current_user.billing_cycle or "monthly",
-            plan_started_at=current_user.plan_started_at,
-            plan_expires_at=current_user.plan_expires_at,
-            new_plan=req.plan,
-            new_billing_cycle=req.billing_cycle,
-            actual_amount_paid=actual_amount_paid
+        breakdown = _calculate_upgrade_breakdown(db, current_user, req.plan, req.billing_cycle)
+
+        _, normalized_coupon_code, coupon_discount = _validate_coupon_for_subtotal(
+            db=db,
+            current_user=current_user,
+            code=req.coupon_code,
+            plan=req.plan,
+            subtotal=breakdown["subtotal"]
         )
-        
-        # Apply coupon discount if provided
-        coupon_discount = 0
-        if req.coupon_code:
-            coupon = db.query(Coupon).filter(Coupon.id == req.coupon_code.strip().upper()).first()
-            if coupon and coupon.is_active:
-                if coupon.discount_type == "percentage":
-                    coupon_discount = round(breakdown["subtotal"] * (coupon.discount_value / 100), 2)
-                else:
-                    coupon_discount = min(coupon.discount_value, breakdown["subtotal"])
-        
-        # Calculate final amount with coupon
-        adjusted_subtotal = max(0, breakdown["subtotal"] - coupon_discount)
-        adjusted_gst = adjusted_subtotal * (breakdown["gst_rate"] / 100)
-        adjusted_total = adjusted_subtotal + adjusted_gst
-        
-        # Convert total (in rupees) to paise for Razorpay
-        amount_paise = int(adjusted_total * 100)
+
+        adjusted_subtotal = round(max(0, breakdown["subtotal"] - coupon_discount), 2)
+        adjusted_gst = round(adjusted_subtotal * (breakdown["gst_rate"] / 100), 2)
+        adjusted_total = round(adjusted_subtotal + adjusted_gst, 2)
+
+        amount_paise = int(round(adjusted_total * 100))
         
         # Minimum amount check (Razorpay minimum is ₹1)
         if amount_paise < 100:
@@ -1174,7 +1189,7 @@ async def create_payment_order(
         # Include breakdown in response with coupon info
         order_data["breakdown"] = {
             **breakdown,
-            "coupon_code": req.coupon_code.upper() if req.coupon_code else None,
+            "coupon_code": normalized_coupon_code,
             "coupon_discount": coupon_discount,
             "adjusted_subtotal": adjusted_subtotal,
             "adjusted_gst": adjusted_gst,
@@ -1182,6 +1197,8 @@ async def create_payment_order(
         }
         
         return order_data
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Failed to create order: {str(e)}")
 
@@ -1206,59 +1223,51 @@ async def verify_payment(
     
     if not is_valid:
         raise HTTPException(400, "Payment verification failed. Invalid signature.")
-    
-    # Update user plan
-    if req.plan not in ["basic", "pro"]:
-        raise HTTPException(400, "Invalid plan.")
+
+    existing_payment = db.query(Payment).filter(
+        Payment.razorpay_payment_id == req.razorpay_payment_id,
+        Payment.status == "success"
+    ).order_by(Payment.completed_at.desc()).first()
+
+    if existing_payment:
+        if existing_payment.user_id != current_user.id:
+            raise HTTPException(400, "Payment verification failed. Payment belongs to a different account.")
+
+        return {
+            "success": True,
+            "message": "Payment already verified for this transaction.",
+            "plan": existing_payment.plan,
+            "billing_cycle": existing_payment.billing_cycle,
+            "expires_at": current_user.plan_expires_at.isoformat() if current_user.plan_expires_at else None,
+            "payment_id": existing_payment.id,
+            "idempotent": True
+        }
+
+    _validate_paid_plan_and_cycle(req.plan, req.billing_cycle)
+    _validate_plan_transition(current_user, req.plan, req.billing_cycle)
     
     now = datetime.utcnow()
-    
-    # CRITICAL: Fetch actual amount paid for current plan (prevents coupon exploit)
-    actual_amount_paid = None
-    if current_user.plan != "free" and current_user.plan_started_at:
-        latest_payment = db.query(Payment).filter(
-            Payment.user_id == current_user.id,
-            Payment.plan == current_user.plan,
-            Payment.billing_cycle == current_user.billing_cycle,
-            Payment.status == "success"
-        ).order_by(Payment.completed_at.desc()).first()
-        
-        if latest_payment:
-            actual_amount_paid = latest_payment.amount
-    
-    # Calculate amounts for payment record using ACTUAL paid amount
-    breakdown = calculate_proration(
-        current_plan=current_user.plan,
-        current_billing_cycle=current_user.billing_cycle or "monthly",
-        plan_started_at=current_user.plan_started_at,
-        plan_expires_at=current_user.plan_expires_at,
-        new_plan=req.plan,
-        new_billing_cycle=req.billing_cycle,
-        actual_amount_paid=actual_amount_paid
+
+    breakdown = _calculate_upgrade_breakdown(db, current_user, req.plan, req.billing_cycle)
+    coupon, normalized_coupon_code, coupon_discount = _validate_coupon_for_subtotal(
+        db=db,
+        current_user=current_user,
+        code=req.coupon_code,
+        plan=req.plan,
+        subtotal=breakdown["subtotal"]
     )
-    
-    # Handle coupon if provided
-    coupon_discount = 0
-    if req.coupon_code:
-        coupon = db.query(Coupon).filter(Coupon.id == req.coupon_code.strip().upper()).first()
-        if coupon and coupon.is_active:
-            if coupon.discount_type == "percentage":
-                coupon_discount = round(breakdown["subtotal"] * (coupon.discount_value / 100), 2)
-            else:
-                coupon_discount = min(coupon.discount_value, breakdown["subtotal"])
-            
-            # Record coupon usage
-            coupon_usage = CouponUsage(
-                coupon_id=coupon.id,
-                user_id=current_user.id
-            )
-            db.add(coupon_usage)
-            coupon.used_count += 1
-    
-    # Calculate final amounts with coupon
-    adjusted_subtotal = max(0, breakdown["subtotal"] - coupon_discount)
-    adjusted_gst = adjusted_subtotal * (breakdown["gst_rate"] / 100)
-    adjusted_total = adjusted_subtotal + adjusted_gst
+
+    if coupon:
+        coupon_usage = CouponUsage(
+            coupon_id=coupon.id,
+            user_id=current_user.id
+        )
+        db.add(coupon_usage)
+        coupon.used_count += 1
+
+    adjusted_subtotal = round(max(0, breakdown["subtotal"] - coupon_discount), 2)
+    adjusted_gst = round(adjusted_subtotal * (breakdown["gst_rate"] / 100), 2)
+    adjusted_total = round(adjusted_subtotal + adjusted_gst, 2)
     
     # Create payment record
     payment = Payment(
@@ -1270,9 +1279,9 @@ async def verify_payment(
         billing_cycle=req.billing_cycle,
         amount=adjusted_total,
         base_amount=breakdown["base_price"],
-        discount_amount=breakdown["credit"] + coupon_discount,
+        discount_amount=round(breakdown["credit"] + coupon_discount, 2),
         gst_amount=adjusted_gst,
-        coupon_code=req.coupon_code.strip().upper() if req.coupon_code else None,
+        coupon_code=normalized_coupon_code,
         status="success",
         completed_at=now
     )
@@ -1283,7 +1292,8 @@ async def verify_payment(
     current_user.billing_cycle = req.billing_cycle
     current_user.plan_started_at = now
     # Use the calculated expiry date from breakdown (accounts for extended time from credit)
-    current_user.plan_expires_at = datetime.fromisoformat(breakdown["new_plan_expires_at"].replace('Z', '+00:00'))
+    expires_raw = breakdown["new_plan_expires_at"].replace("Z", "+00:00")
+    current_user.plan_expires_at = datetime.fromisoformat(expires_raw)
     current_user.cancelled_at = None  # Clear any previous cancellation
     db.commit()
     
@@ -1318,60 +1328,24 @@ async def validate_coupon(
     db: Session = Depends(get_db)
 ):
     """Validate a coupon code and return discount details"""
-    code = req.code.strip().upper()
-    
-    coupon = db.query(Coupon).filter(Coupon.id == code).first()
-    if not coupon:
-        raise HTTPException(400, "Uh oh... we couldn't find that coupon code. Please check and try again!")
-    
-    if not coupon.is_active:
-        raise HTTPException(400, "Uh oh... this coupon is no longer active. Try another one!")
-    
-    now = datetime.utcnow()
-    if coupon.valid_from and coupon.valid_from > now:
-        raise HTTPException(400, "Hmm... this coupon isn't active yet. Come back soon!")
-    
-    if coupon.valid_until and coupon.valid_until < now:
-        raise HTTPException(400, "Uh oh... seems like this coupon has expired. Try another one!")
-    
-    if coupon.max_uses and coupon.used_count >= coupon.max_uses:
-        raise HTTPException(400, "Oh no! This coupon has been fully redeemed. Try another one!")
-    
-    # Check per-user limit
-    user_usage_count = db.query(CouponUsage).filter(
-        CouponUsage.coupon_id == code,
-        CouponUsage.user_id == current_user.id
-    ).count()
-    
-    if user_usage_count >= coupon.per_user_limit:
-        raise HTTPException(400, "You've already used this coupon! Each coupon can only be used once.")
-    
-    # Check applicable plans
-    if coupon.applicable_plans:
-        try:
-            applicable = json.loads(coupon.applicable_plans)
-            if req.plan not in applicable:
-                plan_name = req.plan.capitalize()
-                raise HTTPException(400, f"Oops! This coupon doesn't work for the {plan_name} plan. Try it with another plan!")
-        except json.JSONDecodeError:
-            pass
-    
-    # Calculate discount
-    base_price = PLAN_PRICES[req.plan][req.billing_cycle] / 100  # Convert to rupees
-    
-    if coupon.min_amount and base_price < coupon.min_amount:
-        raise HTTPException(400, f"This coupon requires a minimum order of ₹{int(coupon.min_amount)}. Try a yearly plan!")
-    
-    if coupon.discount_type == "percentage":
-        discount = round(base_price * (coupon.discount_value / 100), 2)
-    else:  # flat
-        discount = min(coupon.discount_value, base_price)  # Can't discount more than price
+    _validate_paid_plan_and_cycle(req.plan, req.billing_cycle)
+    _validate_plan_transition(current_user, req.plan, req.billing_cycle)
+
+    breakdown = _calculate_upgrade_breakdown(db, current_user, req.plan, req.billing_cycle)
+    coupon, code, discount = _validate_coupon_for_subtotal(
+        db=db,
+        current_user=current_user,
+        code=req.code,
+        plan=req.plan,
+        subtotal=breakdown["subtotal"],
+        require_code=True
+    )
     
     return {
         "valid": True,
         "code": code,
-        "discount_type": coupon.discount_type,
-        "discount_value": coupon.discount_value,
+        "discount_type": coupon.discount_type if coupon else None,
+        "discount_value": coupon.discount_value if coupon else 0,
         "discount_amount": discount,
         "message": f"🎉 Coupon applied! You save ₹{discount:.0f}"
     }

@@ -764,14 +764,21 @@ export default function UpgradePlanPage({ resolvedTheme = "dark", user }) {
         { headers: { Authorization: `Bearer ${token}` } }
       )
 
-      const { order_id, amount, currency } = orderRes.data
+      const { order_id, amount, currency, key_id } = orderRes.data
+      const checkoutKey = key_id || import.meta.env.VITE_RAZORPAY_KEY_ID
+
+      if (!checkoutKey) {
+        toast.error("Payment key is missing. Please contact support.")
+        setProcessing(false)
+        return
+      }
 
       // Close the breakdown modal before opening Razorpay
       setShowBreakdownModal(false)
 
       // Step 2: Initialize Razorpay
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: checkoutKey,
         amount: amount,
         currency: currency,
         name: "DocMind",
