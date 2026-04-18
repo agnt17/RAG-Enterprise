@@ -41,7 +41,7 @@ export default function App() {
   const [appLoading, setAppLoading] = useState(true)
   const [documents, setDocuments] = useState([])
   const [switching, setSwitching] = useState(false)
-  const [processingDocId, setProcessingDocId] = useState(null)
+  const [processingDocIds, setProcessingDocIds] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024)
   const [openMenuId, setOpenMenuId] = useState(null)
   const [sourceModal, setSourceModal] = useState(null)
@@ -78,7 +78,9 @@ export default function App() {
   const loadDocuments = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/documents`)
-      setDocuments(res.data.documents || [])
+      const docs = res.data.documents || []
+      setDocuments(docs)
+      setProcessingDocIds(docs.filter(d => d.status === "pending").map(d => d.id))
     } catch { /* silent */ }
   }, [])
 
@@ -104,7 +106,11 @@ export default function App() {
         if (savedDoc) setUploadedFile(savedDoc)
         return axios.get(`${API}/documents`, { headers: { Authorization: `Bearer ${token}` } })
       })
-      .then(res => setDocuments(res.data.documents || []))
+      .then(res => {
+        const docs = res.data.documents || []
+        setDocuments(docs)
+        setProcessingDocIds(docs.filter(d => d.status === "pending").map(d => d.id))
+      })
       .catch(() => { localStorage.removeItem("token"); setToken(null); setUser(null) })
       .finally(() => setAppLoading(false))
   }, [token])
@@ -115,30 +121,75 @@ export default function App() {
     else delete axios.defaults.headers.common["Authorization"]
   }, [token])
 
-  // Poll for document indexing status
+  // Poll all pending documents so rapid uploads don't lose status tracking.
   useEffect(() => {
-    if (!processingDocId || !token) return
-    const interval = setInterval(async () => {
-      try {
-        const res = await axios.get(`${API}/documents/${processingDocId}/status`)
-        const { status } = res.data
-        if (status === "ready") {
-          clearInterval(interval)
-          setDocuments(prev => prev.map(d => d.id === processingDocId ? { ...d, status: "ready" } : d))
-          setUploadedFile(prev => prev?.id === processingDocId ? { ...prev, status: "ready" } : prev)
-          setProcessingDocId(null)
-          toast.success("Document indexed and ready! Ask me anything.")
-        } else if (status === "failed") {
-          clearInterval(interval)
-          setDocuments(prev => prev.filter(d => d.id !== processingDocId))
-          setUploadedFile(prev => prev?.id === processingDocId ? null : prev)
-          setProcessingDocId(null)
-          toast.error("Indexing failed. Please try uploading again.")
-        }
-      } catch { /* keep polling */ }
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [processingDocId, token])
+    if (processingDocIds.length === 0 || !token) return
+
+    let cancelled = false
+
+    const pollStatuses = async () => {
+      const checks = await Promise.allSettled(
+        processingDocIds.map(async (docId) => {
+          const res = await axios.get(`${API}/documents/${docId}/status`)
+          return { docId, status: res.data.status }
+        })
+      )
+
+      if (cancelled) return
+
+      const readyIds = []
+      const failedIds = []
+
+      checks.forEach(check => {
+        if (check.status !== "fulfilled") return
+        if (check.value.status === "ready") readyIds.push(check.value.docId)
+        if (check.value.status === "failed") failedIds.push(check.value.docId)
+      })
+
+      if (readyIds.length === 0 && failedIds.length === 0) return
+
+      const readySet = new Set(readyIds)
+      const failedSet = new Set(failedIds)
+
+      setDocuments(prev => (
+        prev
+          .filter(d => !failedSet.has(d.id))
+          .map(d => (readySet.has(d.id) ? { ...d, status: "ready" } : d))
+      ))
+
+      setUploadedFile(prev => {
+        if (!prev) return prev
+        if (failedSet.has(prev.id)) return null
+        if (readySet.has(prev.id)) return { ...prev, status: "ready" }
+        return prev
+      })
+
+      setProcessingDocIds(prev => prev.filter(id => !readySet.has(id) && !failedSet.has(id)))
+
+      if (readyIds.length > 0) {
+        toast.success(
+          readyIds.length === 1
+            ? "Document indexed and ready! Ask me anything."
+            : `${readyIds.length} documents indexed and ready!`
+        )
+      }
+
+      if (failedIds.length > 0) {
+        toast.error(
+          failedIds.length === 1
+            ? "Indexing failed. Please try uploading again."
+            : `Indexing failed for ${failedIds.length} documents. Please try again.`
+        )
+      }
+    }
+
+    pollStatuses()
+    const interval = setInterval(pollStatuses, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [processingDocIds, token])
 
   // ── Auth ─────────────────────────────────────────────────
   const handleLogin = (tok, userData) => {
@@ -150,6 +201,7 @@ export default function App() {
     localStorage.removeItem("token")
     setToken(null); setUser(null)
     setMessages([]); setUploadedFile(null); setDocuments([])
+    setProcessingDocIds([])
   }
 
   // ── Upload ───────────────────────────────────────────────
@@ -180,7 +232,7 @@ export default function App() {
         sources: [],
         time: getTime()
       }])
-      setProcessingDocId(docId)
+      setProcessingDocIds(prev => (prev.includes(docId) ? prev : [...prev, docId]))
     } catch (err) {
       const s = err.response?.status
       const d = err.response?.data?.detail
@@ -248,6 +300,7 @@ export default function App() {
     try {
       const res = await axios.delete(`${API}/documents/${doc.id}`)
       setDocuments(prev => prev.filter(d => d.id !== doc.id))
+      setProcessingDocIds(prev => prev.filter(id => id !== doc.id))
       if (res.data.new_active) {
         setUploadedFile(res.data.new_active)
         setMessages(res.data.messages.length > 0
