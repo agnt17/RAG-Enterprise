@@ -35,11 +35,75 @@ import cohere
 import os
 import json
 import uuid
+import re
 
 load_dotenv()
 
+EMBEDDING_MODEL = (os.getenv("COHERE_EMBED_MODEL") or "embed-english-v3.0").strip()
+_DEVANAGARI_PATTERN = re.compile(r"[\u0900-\u097F]")
+_HINGLISH_TOKEN_PATTERN = re.compile(r"[a-zA-Z']+")
+_HINGLISH_HINT_WORDS = {
+    "aap",
+    "aur",
+    "baare",
+    "bare",
+    "batao",
+    "bataiye",
+    "bhi",
+    "cheez",
+    "cheeze",
+    "hai",
+    "hain",
+    "hoga",
+    "hogi",
+    "honge",
+    "hum",
+    "isme",
+    "ismein",
+    "ispar",
+    "kab",
+    "ka",
+    "kahan",
+    "kaise",
+    "kaun",
+    "kaunsi",
+    "kaunsa",
+    "ke",
+    "ki",
+    "kis",
+    "kya",
+    "kyu",
+    "kyun",
+    "me",
+    "mein",
+    "mujhe",
+    "nahi",
+    "nahin",
+    "samjhao",
+    "samjhaiye",
+    "se",
+    "usme",
+    "usmein",
+    "wo",
+    "woh",
+    "ye",
+    "yeh",
+}
+_HINGLISH_QUESTION_WORDS = {
+    "kya",
+    "kaise",
+    "kyu",
+    "kyun",
+    "kis",
+    "kahan",
+    "kab",
+    "kaun",
+    "kaunsa",
+    "kaunsi",
+}
+
 embeddings = CohereEmbeddings(
-    model="embed-english-v3.0",
+    model=EMBEDDING_MODEL,
     cohere_api_key=os.getenv("COHERE_API_KEY")
 )
 
@@ -203,6 +267,46 @@ def _is_ooc_answer(answer: str) -> bool:
     return normalized == expected
 
 
+def _looks_like_hinglish(text: str) -> bool:
+    """Heuristic detector for Roman-script Hindi (Hinglish) questions."""
+    tokens = _HINGLISH_TOKEN_PATTERN.findall((text or "").lower())
+    if not tokens:
+        return False
+
+    hits = sum(1 for token in tokens if token in _HINGLISH_HINT_WORDS)
+    if hits >= 2:
+        return True
+
+    # Queries like "kya ..." are strong Hinglish indicators even if short.
+    return tokens[0] in _HINGLISH_QUESTION_WORDS and hits >= 1
+
+
+def _detect_response_language(question: str) -> str:
+    """Infer response language from user question.
+
+    V2 strategy:
+    - Devanagari script => Hindi response.
+    - Explicit mention of Hindi/Hinglish in Latin script => Hindi response.
+    - Hinglish heuristics for Roman-script Hindi => Hindi response.
+    - Otherwise => English response.
+    """
+    text = (question or "").strip()
+    if not text:
+        return "English"
+
+    if _DEVANAGARI_PATTERN.search(text):
+        return "Hindi"
+
+    lowered = text.lower()
+    if "hindi" in lowered or "hindustani" in lowered or "hinglish" in lowered:
+        return "Hindi"
+
+    if _looks_like_hinglish(text):
+        return "Hindi"
+
+    return "English"
+
+
 # ── Main Query Function ──────────────────────────────────────
 
 def query_with_sources(
@@ -223,6 +327,7 @@ def query_with_sources(
             ]
         }
     """
+    response_language = _detect_response_language(question)
 
     # ── Step 1: Dense (semantic) retriever via Pinecone ──────
     vectorstore = PineconeVectorStore(
@@ -295,6 +400,8 @@ def query_with_sources(
     prompt = ChatPromptTemplate.from_messages([
         ("system",
          "You are a helpful assistant. Answer based ONLY on the context below.\n"
+         "Respond in {response_language}.\n"
+         "If response_language is Hindi, write in natural Hindi using Devanagari script.\n"
          "Be concise and precise. If the question does not match the context, "
          f"reply with EXACTLY: {OUT_OF_CONTEXT_MESSAGE}\n\n"
          "Context:\n{context}"),
@@ -307,6 +414,7 @@ def query_with_sources(
         "context":      context,
         "chat_history": chat_history,
         "question":     question,
+        "response_language": response_language,
     })
 
     # If the model explicitly says out-of-context, hide all citations.

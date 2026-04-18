@@ -185,3 +185,75 @@ def test_bm25_one_indexed_page_is_preserved(monkeypatch):
 
     assert result["sources"]
     assert result["sources"][0]["page"] == 3
+
+
+def test_detect_response_language_hindi_for_devanagari_text():
+    assert rag._detect_response_language("यह क्लॉज समझाइए") == "Hindi"
+
+
+def test_detect_response_language_english_for_latin_text():
+    assert rag._detect_response_language("Explain this clause") == "English"
+
+
+def test_detect_response_language_hindi_for_hinglish_text():
+    assert rag._detect_response_language("Yeh document kis cheez ke bare me hai?") == "Hindi"
+
+
+def test_hindi_question_can_return_hindi_answer(monkeypatch):
+    monkeypatch.setattr(rag, "PineconeVectorStore", _FakeVectorStore)
+    monkeypatch.setattr(rag, "_build_bm25_retriever", lambda db, document_id, k: None)
+    monkeypatch.setattr(
+        rag,
+        "_rerank_with_cohere",
+        lambda question, docs, top_n: (
+            [Document(page_content="यह दस्तावेज कर निर्धारण के बारे में है", metadata={"page": 1, "source": "sample.pdf"})],
+            [0.67],
+        ),
+    )
+    monkeypatch.setattr(rag, "PostgresChatMessageHistory", _FakeHistory)
+    monkeypatch.setattr(
+        rag,
+        "ChatGroq",
+        lambda *args, **kwargs: RunnableLambda(lambda _: "यह दस्तावेज कर निर्धारण के बारे में है।"),
+    )
+
+    result = rag.query_with_sources(
+        question="यह दस्तावेज किस बारे में है?",
+        namespace="doc-id",
+        db=None,
+        user_id="user-id",
+        document_id="doc-id",
+    )
+
+    assert "यह दस्तावेज" in result["answer"]
+    assert result["sources"]
+
+
+def test_hinglish_question_can_return_hindi_answer(monkeypatch):
+    monkeypatch.setattr(rag, "PineconeVectorStore", _FakeVectorStore)
+    monkeypatch.setattr(rag, "_build_bm25_retriever", lambda db, document_id, k: None)
+    monkeypatch.setattr(
+        rag,
+        "_rerank_with_cohere",
+        lambda question, docs, top_n: (
+            [Document(page_content="यह दस्तावेज कर निर्धारण के बारे में है", metadata={"page": 1, "source": "sample.pdf"})],
+            [0.67],
+        ),
+    )
+    monkeypatch.setattr(rag, "PostgresChatMessageHistory", _FakeHistory)
+    monkeypatch.setattr(
+        rag,
+        "ChatGroq",
+        lambda *args, **kwargs: RunnableLambda(lambda _: "यह दस्तावेज कर निर्धारण के बारे में है।"),
+    )
+
+    result = rag.query_with_sources(
+        question="Yeh document kis cheez ke bare me hai?",
+        namespace="doc-id",
+        db=None,
+        user_id="user-id",
+        document_id="doc-id",
+    )
+
+    assert "यह दस्तावेज" in result["answer"]
+    assert result["sources"]

@@ -10,9 +10,10 @@ Built by Aditya Gupta (sole developer). Deployed on Render (backend) + Vercel (f
 - **Framework:** FastAPI + Python
 - **Database:** PostgreSQL via SQLAlchemy ORM (`database.py` — 8 tables)
 - **Vector DB:** Pinecone (each `document.id` is a Pinecone namespace)
-- **Embeddings:** Cohere `embed-english-v3.0`
+- **Embeddings:** Cohere model from `COHERE_EMBED_MODEL` (default `embed-english-v3.0`)
 - **LLM:** LLaMA-3.3-70b via Groq
 - **Reranking:** Cohere Rerank API
+- **OCR Fallback:** Tesseract + pytesseract + pypdfium2 for corrupted Hindi extraction
 - **Storage:** Supabase (file storage)
 - **Payments:** Razorpay (INR, with GST)
 - **Auth:** JWT + Google OAuth + email OTP/magic-link verification
@@ -26,8 +27,8 @@ Built by Aditya Gupta (sole developer). Deployed on Render (backend) + Vercel (f
 |------|---------|
 | `main.py` | FastAPI app, all API endpoints |
 | `database.py` | SQLAlchemy ORM models + migrations |
-| `rag.py` | RAG query pipeline (hybrid search + reranking) |
-| `ingest.py` | PDF ingestion → Pinecone + PostgreSQL |
+| `rag.py` | RAG query pipeline (hybrid search + reranking + Hindi/Hinglish response routing) |
+| `ingest.py` | PDF ingestion → quality guard + OCR fallback → Pinecone + PostgreSQL |
 | `auth.py` | JWT, Google OAuth, OTP, password hashing |
 | `payment.py` | Razorpay order creation + verification |
 | `plan_limits.py` | Usage enforcement per plan tier |
@@ -59,14 +60,15 @@ Every query goes through:
 3. EnsembleRetriever (BM25 weight 0.4, dense weight 0.6), fetch top-10 each
 4. Cohere Rerank → keep top-4 chunks
 5. Build context + load chat history from PostgreSQL
-6. Call LLaMA-3.3-70b via Groq
-7. Persist Q&A with source citations
+6. Detect response language (English/Hindi with Hinglish heuristics)
+7. Call LLaMA-3.3-70b via Groq
+8. Persist Q&A with source citations
 
 Constants: `RETRIEVAL_K = 10`, `RERANK_TOP_N = 4`
 
 ## Upload Pipeline (Background Indexing)
 
-`POST /upload` returns immediately (~2-3s) after uploading to Supabase and creating the DB record with `status="pending"`. Ingestion runs in a FastAPI `BackgroundTask` (`_run_ingest` in `main.py`) using its own `SessionLocal`. When done it flips `status` to `"ready"` or `"failed"`. Frontend polls `GET /documents/{id}/status` every 2 seconds until resolved.
+`POST /upload` returns immediately (~2-3s) after uploading to Supabase and creating the DB record with `status="pending"`. Ingestion runs in a FastAPI `BackgroundTask` (`_run_ingest` in `main.py`) using its own `SessionLocal`. Ingestion applies Hindi extraction quality checks and optional Tesseract OCR fallback before chunking/embedding. When done it flips `status` to `"ready"` or `"failed"`. Frontend polls `GET /documents/{id}/status` every 2 seconds until resolved.
 
 ## Coding Conventions
 - Python type hints on all new function signatures
@@ -81,7 +83,9 @@ Constants: `RETRIEVAL_K = 10`, `RERANK_TOP_N = 4`
 ## Environment Variables Required
 `DATABASE_URL`, `PINECONE_API_KEY`, `COHERE_API_KEY`, `GROQ_API_KEY`,
 `SUPABASE_URL`, `SUPABASE_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
-`JWT_SECRET`, `GOOGLE_CLIENT_ID`, `FRONTEND_URL`, `SMTP_*` (email)
+`JWT_SECRET`, `GOOGLE_CLIENT_ID`, `FRONTEND_URL`, `SMTP_*` (email),
+`COHERE_EMBED_MODEL`, `ENABLE_HINDI_OCR_FALLBACK`, `HINDI_OCR_CORRUPTION_THRESHOLD`,
+`HINDI_OCR_MIN_IMPROVEMENT`, `OCR_LANGS`, `OCR_RENDER_SCALE`, `TESSERACT_CMD`
 
 ## Deployment
 - Backend: Render (`start.sh` entrypoint, `runtime.txt` sets Python version)
