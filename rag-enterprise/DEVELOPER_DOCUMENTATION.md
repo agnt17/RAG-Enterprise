@@ -160,7 +160,7 @@ User → Frontend → POST /upload → Rate Limit Check → Plan Limit Check
                     ◄──── Return 200 immediately (~2-3s) ────────────────
                     │                    │
                     │                    ▼ (BackgroundTask — runs after response)
-                    │         PDF Text Extraction (PyPDF)
+                    │         PDF Text Extraction (PyPDF + OCR fallback)
                     │                    │
                     │                    ▼
                     │         Text Chunking (1000 chars, 200 overlap)
@@ -241,9 +241,9 @@ User Question → Frontend → POST /query → Auth Check → Plan Limit Check
 | **ORM** | SQLAlchemy | 2.x | Database abstraction |
 | **Database** | PostgreSQL | 14+ | Primary data store |
 | **Vector DB** | Pinecone | Latest | Embedding storage & search |
-| **Embeddings** | Cohere | embed-english-v3.0 | Text-to-vector conversion |
+| **Embeddings** | Cohere | Configurable via `COHERE_EMBED_MODEL` | Text-to-vector conversion |
 | **LLM** | Groq | llama-3.3-70b-versatile | Answer generation |
-| **PDF Processing** | PyPDF | Latest | PDF text extraction |
+| **PDF Processing** | PyPDF + Tesseract OCR fallback | Latest | PDF text extraction with Hindi quality recovery |
 | **Auth** | PyJWT + Argon2 | - | Token generation & password hashing |
 | **Payments** | Razorpay | Latest | Payment processing |
 | **File Storage** | Supabase Storage | - | Cloud file hosting |
@@ -300,6 +300,7 @@ backend/
     ├── test_api.py
     ├── test_auth.py
     ├── test_document_upload_quota.py
+    ├── test_ingest_hindi_ocr_fallback.py
     └── test_rag_out_of_context.py
 ```
 
@@ -344,17 +345,20 @@ backend/
   - EnsembleRetriever — merges BM25 (0.4) + dense (0.6) results
   - Cohere Rerank API — selects top-4 from merged candidates
   - Context assembly + chat history loading from PostgreSQL
+  - Response language routing (English/Hindi with Hinglish heuristics)
   - LLM answer generation (LLaMA-3.3-70b, temp=0)
   - Source citation extraction with page-number normalization
   - Out-of-context detection and sentinel response
 
 ### ingest.py (Processing Layer)
-- **Lines:** ~120
+- **Lines:** ~200+
 - **Role:** Document ingestion
 - **Responsibilities:**
   - PDF loading and text extraction (PyPDFLoader)
+  - Hindi extraction quality scoring (matra/split-token corruption heuristics)
+  - Tesseract OCR fallback when Hindi extraction quality is poor
   - Text chunking with overlap (1000 chars / 200 overlap)
-  - Batch embedding generation (Cohere embed-english-v3.0)
+  - Batch embedding generation (Cohere model from `COHERE_EMBED_MODEL`)
   - Pinecone vector storage (namespace = document UUID)
   - Persist raw chunks to PostgreSQL `document_chunks` for BM25
   - Namespace deletion on document removal
@@ -1017,12 +1021,13 @@ The system combines hybrid document retrieval (BM25 keyword + Pinecone semantic)
 
 ## 8.2 Document Ingestion Pipeline
 
-### Step 1: PDF Loading
+### Step 1: PDF Loading + Quality Fallback
 ```python
-loader = PyPDFLoader(file_path)
-pages = loader.load()
+pages = _load_documents_with_quality_fallback(file_path)
 # Each page: Document(page_content=text, metadata={page: N})
 ```
+
+If extracted Hindi text looks corrupted (for example, split matras/characters), ingestion attempts OCR (`pytesseract` + `pypdfium2`) and uses OCR text only when quality improves by a configured threshold.
 
 ### Step 2: Text Chunking
 ```python
@@ -1036,7 +1041,7 @@ chunks = splitter.split_documents(pages)
 
 ### Step 3: Embedding Generation
 ```python
-embeddings = CohereEmbeddings(model="embed-english-v3.0")
+embeddings = CohereEmbeddings(model=os.getenv("COHERE_EMBED_MODEL", "embed-english-v3.0"))
 # Converts each chunk text → 1024-dimensional vector
 ```
 
@@ -1891,7 +1896,7 @@ PINECONE_INDEX_NAME=docmind-index
 ```
 
 **Index Settings:**
-- Dimension: 1024 (Cohere embed-english-v3.0)
+- Dimension: 1024 (Cohere embedding model selected by `COHERE_EMBED_MODEL`)
 - Metric: Cosine similarity
 - Cloud: AWS (us-east-1 recommended)
 
@@ -1916,14 +1921,14 @@ index.delete(delete_all=True, namespace=doc_id)
 COHERE_API_KEY=your_api_key
 ```
 
-**Embeddings — `embed-english-v3.0`**
+**Embeddings — configurable via `COHERE_EMBED_MODEL`**
 - Output dimension: 1024
 - Used at ingestion (chunks) and query time (question embedding for Pinecone)
 
 ```python
 from langchain_cohere import CohereEmbeddings
 
-embeddings = CohereEmbeddings(model="embed-english-v3.0")
+embeddings = CohereEmbeddings(model=os.getenv("COHERE_EMBED_MODEL", "embed-english-v3.0"))
 vector = embeddings.embed_query("Hello world")      # Returns list[float]
 vectors = embeddings.embed_documents(["text1", "text2"])  # Batch
 ```
@@ -2916,8 +2921,34 @@ New endpoint added to surface usage data for dashboard display.
 
 `daily_trend` contains one entry per day (last 30 days) with non-zero query counts — suitable for rendering a bar/line chart on a frontend analytics dashboard.
 
+### 20.9 Hindi/Hinglish and OCR Quality Recovery
+
+To improve Hindi document quality and response consistency:
+
+1. **Language routing in `rag.py`** now supports Hindi responses for:
+  - Devanagari-script questions
+  - Explicit Hindi/Hinglish hints in Latin script
+  - Hinglish heuristics (common Roman-Hindi tokens)
+2. **Ingestion quality guard in `ingest.py`** scores extracted Hindi text for common corruption patterns.
+3. **OCR fallback** is attempted when corruption is above threshold and enabled by config.
+4. OCR output is used only when it meaningfully improves extraction quality.
+
+Environment controls:
+
+```env
+COHERE_EMBED_MODEL=embed-english-v3.0
+ENABLE_HINDI_OCR_FALLBACK=true
+HINDI_OCR_CORRUPTION_THRESHOLD=0.035
+HINDI_OCR_MIN_IMPROVEMENT=0.010
+OCR_LANGS=hin+eng
+OCR_RENDER_SCALE=2.0
+TESSERACT_CMD=C:/Program Files/Tesseract-OCR/tesseract.exe
+```
+
+Operational note: OCR improvements apply at ingestion time. Existing Hindi PDFs should be re-uploaded/re-ingested to regenerate cleaner chunks.
+
 ---
 
-**Document Version:** 2.1
+**Document Version:** 2.2
 **Last Updated:** April 2026
 **Maintainer:** DocMind Development Team

@@ -16,10 +16,10 @@ Upload PDF → Extract Text → Split into Chunks → Embed (Cohere) → Store i
 User asks question → Hybrid Retrieval (BM25 + Pinecone) → Cohere Rerank → Send to LLaMA → Get answer
 ```
 
-1. **PDF Ingestion** — Document is loaded, split into 1000-character chunks with 200-character overlaps, embedded into 1024-dimensional vectors using Cohere, stored in Pinecone (semantic), and raw text chunks persisted to PostgreSQL (for BM25 keyword search)
+1. **PDF Ingestion** — Document is loaded, text extraction quality is checked, Hindi OCR fallback is applied when needed, then text is split into 1000-character chunks with 200-character overlaps, embedded into 1024-dimensional vectors using Cohere, stored in Pinecone (semantic), and raw text chunks persisted to PostgreSQL (for BM25 keyword search)
 2. **Hybrid Search** — At query time, BM25 (keyword, weight 0.4) and Pinecone dense retrieval (semantic, weight 0.6) run in parallel via `EnsembleRetriever`, each surfacing top-10 candidates
 3. **Cohere Reranking** — The merged candidates are reranked using Cohere's Rerank API, keeping the top-4 most relevant chunks
-4. **LLM Generation** — LLaMA-3.3-70b (via Groq) receives your question + reranked context and generates a grounded, accurate answer with source citations
+4. **LLM Generation** — LLaMA-3.3-70b (via Groq) receives your question + reranked context and generates a grounded, accurate answer with source citations. Response language routing supports English, Hindi, and Roman-Hindi (Hinglish) inputs
 5. **Conversation Memory** — Chat history is persisted to PostgreSQL per document, enabling natural follow-up questions
 
 ---
@@ -29,8 +29,9 @@ User asks question → Hybrid Retrieval (BM25 + Pinecone) → Cohere Rerank → 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | LLM | Groq + LLaMA-3.3-70b | Fast, free inference |
-| Embeddings | Cohere `embed-english-v3.0` | Text → vectors (1024 dim) |
+| Embeddings | Cohere `COHERE_EMBED_MODEL` (default: `embed-english-v3.0`) | Text → vectors (1024 dim) |
 | Reranking | Cohere `rerank-english-v3.0` | Context quality boost |
+| OCR Fallback | Tesseract + `pytesseract` + `pypdfium2` | Recover Hindi text when PDF extraction is corrupted |
 | Vector DB | Pinecone | Semantic similarity search |
 | Keyword Search | BM25 (in-memory) | Exact-match retrieval |
 | RAG Framework | LangChain | Orchestrates the pipeline |
@@ -87,6 +88,16 @@ GROQ_API_KEY=your-groq-api-key
 PINECONE_API_KEY=your-pinecone-api-key
 PINECONE_INDEX_NAME=rag-enterprise
 COHERE_API_KEY=your-cohere-api-key
+# Optional: set to embed-multilingual-v3.0 for Hindi/multilingual support
+COHERE_EMBED_MODEL=embed-english-v3.0
+# Optional: Hindi OCR fallback when extracted text is corrupted
+ENABLE_HINDI_OCR_FALLBACK=true
+HINDI_OCR_CORRUPTION_THRESHOLD=0.035
+HINDI_OCR_MIN_IMPROVEMENT=0.010
+OCR_LANGS=hin+eng
+OCR_RENDER_SCALE=2.0
+# Optional override for Windows path, e.g. C:\Program Files\Tesseract-OCR\tesseract.exe
+TESSERACT_CMD=
 JWT_SECRET=your-long-random-secret
 FRONTEND_URL=http://localhost:5173
 SUPABASE_URL=https://your-project.supabase.co
@@ -105,6 +116,26 @@ SMTP_PORT=587
 SMTP_USER=your-smtp-username
 SMTP_PASSWORD=your-smtp-password
 ```
+
+For Hindi OCR fallback, install Tesseract OCR and Hindi language data on your host machine.
+
+Windows quick setup:
+
+```bash
+winget install --id tesseract-ocr.tesseract -e
+curl -L -o "C:\Program Files\Tesseract-OCR\tessdata\hin.traineddata" "https://github.com/tesseract-ocr/tessdata_best/raw/main/hin.traineddata"
+"C:\Program Files\Tesseract-OCR\tesseract.exe" --list-langs
+```
+
+Expected output must include `hin`.
+
+If `tesseract` is not on PATH, set:
+
+```env
+TESSERACT_CMD=C:/Program Files/Tesseract-OCR/tesseract.exe
+```
+
+Important: OCR improvements apply at ingestion time. Re-upload or re-ingest existing Hindi PDFs to regenerate corrected chunks.
 
 ### 3. Pinecone Index Setup
 
@@ -154,6 +185,7 @@ rag-enterprise/
 │   │   ├── test_api.py
 │   │   ├── test_auth.py
 │   │   ├── test_document_upload_quota.py
+│   │   ├── test_ingest_hindi_ocr_fallback.py
 │   │   └── test_rag_out_of_context.py
 │   └── requirements.txt
 ├── frontend/

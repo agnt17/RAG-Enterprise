@@ -11,6 +11,9 @@ langchain-pinecone
 cohere
 pinecone
 pypdf
+pypdfium2
+pytesseract
+Pillow
 python-multipart
 sqlalchemy
 psycopg2-binary

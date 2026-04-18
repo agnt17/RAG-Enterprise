@@ -139,7 +139,7 @@ The backend and frontend are completely independent applications that communicat
 - Most importantly: **completely free tier** — critical for a portfolio/early-stage product
 
 **Cohere — Embeddings + Reranking**
-- `embed-english-v3.0`: Converts text to 1024-dimensional vectors
+- `COHERE_EMBED_MODEL` (default: `embed-english-v3.0`): Converts text to 1024-dimensional vectors
 - `rerank-english-v3.0`: Takes 20 retrieved candidates and reranks them by relevance — the single biggest quality improvement in Phase 5
 - Why Cohere over HuggingFace? HuggingFace runs the model locally and needs 500MB+ RAM — too heavy for free deployment servers. Cohere is an API call — zero server RAM cost
 
@@ -197,12 +197,11 @@ The backend and frontend are completely independent applications that communicat
 
 This file runs once every time a user uploads a PDF. Its job is to take a raw PDF and turn it into searchable vectors in Pinecone, and also persist raw chunks to PostgreSQL for BM25.
 
-**Step 1 — Load PDF**
+**Step 1 — Load PDF with quality guard**
 ```python
-loader = PyPDFLoader(file_path)
-documents = loader.load()
+documents = _load_documents_with_quality_fallback(file_path)
 ```
-PyPDFLoader extracts text from each page. A 10-page PDF returns 10 Document objects, each with `page_content` and metadata (page number, source filename).
+PyPDFLoader extracts text from each page. If Hindi extraction appears corrupted (split matras/characters), the pipeline can run Tesseract OCR fallback (`pytesseract` + `pypdfium2`) and switch to OCR text only when quality improves. A 10-page PDF returns 10 Document objects with `page_content` and metadata.
 
 **Step 2 — Chunking**
 ```python
@@ -283,6 +282,9 @@ Each answer includes a `sources` list with page numbers, source filename, and a 
 
 **Out-of-Context Detection**
 If retrieval returns no usable content, or the LLM explicitly returns the out-of-context sentinel message, sources are hidden and the sentinel is returned directly. This prevents hallucination responses.
+
+**Language Routing (Hindi + Hinglish)**
+`rag.py` now detects response language from the question. Devanagari queries route to Hindi, and common Roman-Hindi (Hinglish) patterns also route to Hindi. This improves consistency for users who speak Hindi but type in Latin script.
 
 ---
 
