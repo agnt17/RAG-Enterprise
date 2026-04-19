@@ -251,7 +251,10 @@ def ingest_pdf(
 
 
 def delete_namespace(namespace: str) -> bool:
-    pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-    index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
-    index.delete(delete_all=True, namespace=namespace)
-    return True
+    try:
+        pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+        index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
+        index.delete(delete_all=True, namespace=namespace)
+        return True
+    except Exception:
+        return False

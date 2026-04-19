@@ -58,6 +58,21 @@ Yearly billing available at a discount (Basic: ₹9,999/yr, Pro: ₹19,999/yr).
 
 ---
 
+## Legal and Trust
+
+The frontend includes a public legal center under `frontend/public/legal` and is served at:
+
+- `/legal/index.html`
+- `/legal/terms-of-service.html`
+- `/legal/privacy-policy.html`
+- `/legal/ai-transparency.html`
+- `/legal/data-retention-and-deletion.html`
+- `/legal/subprocessors.html`
+
+Review and customize these pages for your legal entity details and jurisdiction before production launch.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -100,6 +115,9 @@ OCR_RENDER_SCALE=2.0
 TESSERACT_CMD=
 JWT_SECRET=your-long-random-secret
 FRONTEND_URL=http://localhost:5173
+# Optional: policy versions stored when users accept legal terms at signup
+LEGAL_TERMS_VERSION=2026-04-18
+LEGAL_PRIVACY_VERSION=2026-04-18
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-supabase-anon-key
 RAZORPAY_KEY_ID=rzp_test_...

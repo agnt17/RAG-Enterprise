@@ -39,7 +39,8 @@ PLAN_LIMITS = {
 
 def get_plan_limits(plan: str) -> dict:
     """Get limits for a specific plan"""
-    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    normalized_plan = (plan or "").strip().lower()
+    return PLAN_LIMITS.get(normalized_plan, PLAN_LIMITS["free"])
 
 
 def get_user_document_count(db: Session, user_id: str) -> int:

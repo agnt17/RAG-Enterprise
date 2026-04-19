@@ -89,7 +89,7 @@ export default function HelpPage({ resolvedTheme = "dark" }) {
     },
     {
       question: "What is the file size limit per document?",
-      answer: "The free plan allows uploading files up to 10 MB. Premium plans have higher file size limits."
+      answer: "Free users can upload up to 10 MB per file, Basic users up to 50 MB, and Pro users up to 100 MB."
     }
   ]
 
@@ -168,9 +168,14 @@ export default function HelpPage({ resolvedTheme = "dark" }) {
             <p className={`text-sm mb-3 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
               View detailed guides
             </p>
-            <button className={`text-sm font-medium cursor-pointer ${isDark ? "text-purple-400 hover:text-purple-300" : "text-purple-600 hover:text-purple-700"}`}>
-              Read Docs
-            </button>
+            <a
+              href="/legal/index.html"
+              target="_blank"
+              rel="noreferrer"
+              className={`text-sm font-medium cursor-pointer ${isDark ? "text-purple-400 hover:text-purple-300" : "text-purple-600 hover:text-purple-700"}`}
+            >
+              Read Legal Center
+            </a>
           </div>
         </div>
 
@@ -188,6 +193,19 @@ export default function HelpPage({ resolvedTheme = "dark" }) {
                 isDark={isDark}
               />
             ))}
+          </div>
+
+          <div className={`mt-6 pt-5 border-t ${isDark ? "border-white/[0.08]" : "border-slate-200/70"}`}>
+            <p className={`text-sm mb-2 ${isDark ? "text-gray-400" : "text-slate-600"}`}>
+              Legal and trust documents:
+            </p>
+            <div className="flex flex-wrap gap-3 text-sm">
+              <a href="/legal/terms-of-service.html" target="_blank" rel="noreferrer" className={isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}>Terms</a>
+              <a href="/legal/privacy-policy.html" target="_blank" rel="noreferrer" className={isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}>Privacy</a>
+              <a href="/legal/ai-transparency.html" target="_blank" rel="noreferrer" className={isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}>AI Transparency</a>
+              <a href="/legal/data-retention-and-deletion.html" target="_blank" rel="noreferrer" className={isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}>Retention</a>
+              <a href="/legal/subprocessors.html" target="_blank" rel="noreferrer" className={isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}>Subprocessors</a>
+            </div>
           </div>
         </div>
 
