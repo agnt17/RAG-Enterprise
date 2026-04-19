@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-from database import get_db, create_tables, ensure_user_columns, User, Document, Conversation, ProfileImageSource, Coupon, CouponUsage, Payment, SessionLocal
+from database import get_db, create_tables, ensure_user_columns, User, Document, DocumentChunk, Conversation, ProfileImageSource, Coupon, CouponUsage, Payment, SessionLocal
 from auth import (hash_password, verify_password, create_token,
                   validate_password_strength,
                   get_current_user, verify_google_token,
@@ -15,7 +15,7 @@ from ingest import ingest_pdf
 from supabase_storage import (
     is_supabase_configured, ensure_buckets_exist,
     upload_profile_image, delete_profile_image,
-    upload_document, get_document_url, download_document, delete_document
+    upload_document, get_document_url, download_document, delete_document as delete_stored_document
 )
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from sqlalchemy import and_
@@ -36,6 +36,8 @@ VERIFICATION_EXPIRY_MINUTES = 15
 VERIFICATION_MAX_ATTEMPTS = 5
 VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+LEGAL_TERMS_VERSION = os.getenv("LEGAL_TERMS_VERSION", "2026-04-18")
+LEGAL_PRIVACY_VERSION = os.getenv("LEGAL_PRIVACY_VERSION", "2026-04-18")
 
 create_tables()
 ensure_user_columns()  # Ensure new columns exist
@@ -57,6 +59,8 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     name: str | None = None
+    accept_terms: bool = False
+    accept_privacy: bool = False
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -64,6 +68,8 @@ class LoginRequest(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     token: str
+    accept_terms: bool = False
+    accept_privacy: bool = False
 
 
 class VerifyEmailRequest(BaseModel):
@@ -170,12 +176,30 @@ def _verification_pending_payload(email: str, expires_at: datetime) -> dict:
         "resend_after_seconds": VERIFICATION_RESEND_COOLDOWN_SECONDS
     }
 
+
+def _require_legal_acceptance(accept_terms: bool, accept_privacy: bool) -> None:
+    if accept_terms and accept_privacy:
+        return
+    raise HTTPException(
+        status_code=400,
+        detail="You must accept the Terms of Service and Privacy Policy to create an account."
+    )
+
+
+def _stamp_legal_acceptance(user: User, accepted_at: datetime | None = None) -> None:
+    accepted_at = accepted_at or datetime.utcnow()
+    user.terms_accepted_at = accepted_at
+    user.privacy_accepted_at = accepted_at
+    user.terms_version = LEGAL_TERMS_VERSION
+    user.privacy_version = LEGAL_PRIVACY_VERSION
+
 # ── Auth Endpoints ─────────────────────────────────────────
 @app.post("/register")
 @limiter.limit("5/minute")
 def register(request: Request, req: RegisterRequest, db: Session = Depends(get_db)):
     email = normalize_email(req.email)
     validate_password_strength(req.password)
+    _require_legal_acceptance(req.accept_terms, req.accept_privacy)
 
     existing_user = db.query(User).filter(User.email == email).first()
     if existing_user:
@@ -184,6 +208,7 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
             existing_user.hashed_password = hash_password(req.password)
             if req.name:
                 existing_user.name = req.name
+            _stamp_legal_acceptance(existing_user)
             try:
                 issued_email, expires_at = _issue_verification_challenge(existing_user, db)
             except RuntimeError as exc:
@@ -198,6 +223,7 @@ def register(request: Request, req: RegisterRequest, db: Session = Depends(get_d
         hashed_password = hash_password(req.password),
         email_verified  = False,
     )
+    _stamp_legal_acceptance(user)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -318,7 +344,18 @@ def resend_verification(request: Request, req: ResendVerificationRequest, db: Se
 @app.post("/auth/google")
 def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
     google_info = verify_google_token(req.token)
-    user  = get_or_create_google_user(db, google_info)
+    google_email = normalize_email(google_info["email"])
+    existing_user = db.query(User).filter(User.email == google_email).first()
+    if not existing_user:
+        _require_legal_acceptance(req.accept_terms, req.accept_privacy)
+
+    user = get_or_create_google_user(db, google_info)
+
+    # Capture explicit acceptance for new accounts and optional re-consent for existing users.
+    if req.accept_terms and req.accept_privacy:
+        _stamp_legal_acceptance(user)
+        db.commit()
+
     token = create_token(user.id, user.email)
     return {"token": token, "user": {"email": user.email, "name": user.name, "picture": user.picture}}
 
@@ -346,7 +383,11 @@ def get_me(current_user: User = Depends(get_current_user), db: Session = Depends
         "profile_image_source": current_user.profile_image_source or ProfileImageSource.INITIAL.value,
         "has_password":         current_user.hashed_password is not None,
         "is_google_user":       current_user.google_id is not None,
-        "profession":           current_user.profession
+        "profession":           current_user.profession,
+        "terms_accepted_at":    current_user.terms_accepted_at.isoformat() if current_user.terms_accepted_at else None,
+        "privacy_accepted_at":  current_user.privacy_accepted_at.isoformat() if current_user.privacy_accepted_at else None,
+        "terms_version":        current_user.terms_version,
+        "privacy_version":      current_user.privacy_version,
     }
 
 @app.get("/usage")
@@ -620,9 +661,6 @@ async def upload_pdf(
                 "current_plan": current_user.plan
             }
         )
-
-    if len(contents) > 25 * 1024 * 1024:
-        raise HTTPException(400, "File too large. Maximum allowed size is 25MB.")
 
     # Validation 3 — magic bytes (real PDF check)
     if not contents.startswith(b"%PDF"):
@@ -919,19 +957,29 @@ async def delete_document(
     stored_name = doc.file_path
 
     # Delete Pinecone vectors for this document
+    from ingest import delete_namespace
+    if not delete_namespace(document_id):
+        raise HTTPException(500, "Could not delete Pinecone vectors for this document. Please retry.")
+
+    # Delete document from Supabase Storage (or local fallback if present).
     try:
-        from ingest import delete_namespace
-        delete_namespace(document_id)
+        delete_stored_document(current_user.id, stored_name)
     except Exception:
         pass
 
-    # Delete file from disk
+    # Legacy local-disk cleanup (for any old pre-Supabase files).
     try:
         disk_path = f"uploads/{stored_name}"
         if os.path.exists(disk_path):
             os.remove(disk_path)
     except Exception:
         pass
+
+    # Delete stored chunks used by BM25 hybrid retrieval.
+    db.query(DocumentChunk).filter(
+        DocumentChunk.document_id == document_id,
+        DocumentChunk.user_id == current_user.id,
+    ).delete(synchronize_session=False)
 
     # Delete conversation
     db.query(Conversation).filter(

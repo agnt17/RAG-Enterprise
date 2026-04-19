@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subprocessors - DocMind AI</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
+      .wrap { max-width: 980px; margin: 36px auto; padding: 0 20px; }
+      .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px; box-shadow: 0 10px 30px rgba(15,23,42,0.06); }
+      h1, h2 { color: #0f172a; }
+      h1 { margin-top: 0; }
+      p, li { line-height: 1.65; }
+      a { color: #0369a1; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .meta { color: #475569; font-size: 14px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; vertical-align: top; }
+      th { background: #f1f5f9; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>Subprocessors</h1>
+        <p class="meta">Last updated: April 18, 2026</p>
+
+        <p>
+          This page lists key third-party service providers that may process data on behalf of DocMind AI.
+          It is maintained as a transparency reference and may be updated over time.
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>Category</th>
+              <th>Purpose</th>
+              <th>Data Categories</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Supabase</td>
+              <td>Storage</td>
+              <td>Private file storage and retrieval</td>
+              <td>Uploaded documents, profile images, file metadata</td>
+            </tr>
+            <tr>
+              <td>Pinecone</td>
+              <td>Vector Database</td>
+              <td>Embedding storage and semantic retrieval</td>
+              <td>Embeddings, vector metadata, document namespace IDs</td>
+            </tr>
+            <tr>
+              <td>Cohere</td>
+              <td>AI/ML</td>
+              <td>Embeddings and reranking</td>
+              <td>Extracted text chunks, query text, ranking context</td>
+            </tr>
+            <tr>
+              <td>Groq</td>
+              <td>AI/ML</td>
+              <td>LLM answer generation</td>
+              <td>User question and retrieved context excerpts</td>
+            </tr>
+            <tr>
+              <td>Razorpay</td>
+              <td>Payments</td>
+              <td>Payment processing and billing references</td>
+              <td>Payment metadata, billing details, transaction IDs</td>
+            </tr>
+            <tr>
+              <td>Configured SMTP provider (for example, Gmail or SendGrid)</td>
+              <td>Email</td>
+              <td>Verification and transactional email delivery</td>
+              <td>Email address, verification content</td>
+            </tr>
+            <tr>
+              <td>Render</td>
+              <td>Infrastructure Hosting</td>
+              <td>Backend hosting and runtime infrastructure</td>
+              <td>Operational logs, service traffic metadata</td>
+            </tr>
+            <tr>
+              <td>Vercel</td>
+              <td>Frontend Hosting</td>
+              <td>Frontend deployment and delivery</td>
+              <td>Web request metadata and delivery logs</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Change Management</h2>
+        <p>
+          We may add, replace, or remove subprocessors as the product evolves. This page should be updated with material
+          changes before or when new subprocessors are used in production.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions: <a href="mailto:adityagupta20042003@gmail.com">adityagupta20042003@gmail.com</a><br />
+          Legal index: <a href="/legal/index.html">/legal/index.html</a>
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

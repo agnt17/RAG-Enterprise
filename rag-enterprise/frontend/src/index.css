@@ -80,6 +80,16 @@ body {
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
 }
 
+/* Hide auth panel scrollbars while keeping scroll enabled */
+.auth-pane-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.auth-pane-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 /* Ensure all enabled buttons show pointer cursor */
 button:not(:disabled) {
   cursor: pointer;
