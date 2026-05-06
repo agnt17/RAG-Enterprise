@@ -61,3 +61,17 @@ def send_verification_email(email: str, name: str | None, otp_code: str, magic_l
         server.starttls()
         server.login(smtp_user, smtp_password)
         server.sendmail(sender, [email], msg.as_string())
+    try:
+      with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(sender, [email], msg.as_string())
+    except Exception as exc:
+      # Avoid raising on transient network/SMTP errors so API endpoints don't return 500.
+      # Fall back to console mode and log the exception for diagnostics.
+      print("[EMAIL-ERROR] Failed to send verification email, falling back to console mode.")
+      print(f"to={email}")
+      print(f"otp={otp_code}")
+      print(f"magic_link={magic_link}")
+      print("[EMAIL-ERROR] Exception:", repr(exc))
+      return
