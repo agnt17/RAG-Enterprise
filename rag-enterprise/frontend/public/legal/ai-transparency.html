@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Transparency Notice - DocMind AI</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
+      .wrap { max-width: 900px; margin: 36px auto; padding: 0 20px; }
+      .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px; box-shadow: 0 10px 30px rgba(15,23,42,0.06); }
+      h1, h2 { color: #0f172a; }
+      h1 { margin-top: 0; }
+      p, li { line-height: 1.65; }
+      a { color: #0369a1; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .meta { color: #475569; font-size: 14px; }
+      .callout { background: #fffbeb; border: 1px solid #fcd34d; padding: 14px; border-radius: 10px; }
+      code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>AI Transparency Notice</h1>
+        <p class="meta">Last updated: April 18, 2026</p>
+
+        <p>
+          This notice explains how DocMind AI uses AI and retrieval systems to answer questions on your uploaded documents.
+        </p>
+
+        <h2>1. Processing Flow (High-Level)</h2>
+        <ol>
+          <li>You upload a PDF to private storage.</li>
+          <li>Text is extracted, chunked, and converted into embeddings.</li>
+          <li>Embeddings are stored in a vector database for semantic retrieval.</li>
+          <li>At query time, retrieval returns relevant text chunks.</li>
+          <li>Reranking and LLM generation produce an answer with citations.</li>
+        </ol>
+
+        <h2>2. What Is Sent to External AI Providers</h2>
+        <ul>
+          <li>Your question text.</li>
+          <li>Relevant extracted document excerpts/chunks required for ranking and answer generation.</li>
+          <li>Embedding requests for chunk text and query text.</li>
+        </ul>
+
+        <h2>3. What Is Not Shared as Public Content</h2>
+        <p>
+          We do not publicly publish your files. We do not market, sell, or openly expose your uploaded documents.
+          Processing is limited to service operation and configured subprocessors.
+        </p>
+
+        <h2>4. Important Accuracy Notice</h2>
+        <div class="callout">
+          AI responses may be incorrect, incomplete, outdated, or contextually wrong. Always verify important outputs,
+          especially for legal, financial, compliance, or contractual decisions.
+        </div>
+
+        <h2>5. Language and OCR Features</h2>
+        <p>
+          For multilingual and Hindi workflows, DocMind AI may use OCR fallback and language routing logic.
+          OCR and retrieval quality may vary by input PDF quality.
+        </p>
+
+        <h2>6. User Controls</h2>
+        <ul>
+          <li>Delete documents anytime in-app.</li>
+          <li>
+            Document deletion is intended to remove related vectors, extracted chunks, and document-scoped history,
+            in addition to the stored file.
+          </li>
+          <li>Contact support for full account-level deletion requests.</li>
+        </ul>
+
+        <h2>7. Related Documents</h2>
+        <ul>
+          <li><a href="/legal/privacy-policy.html">Privacy Policy</a></li>
+          <li><a href="/legal/terms-of-service.html">Terms of Service</a></li>
+          <li><a href="/legal/subprocessors.html">Subprocessors</a></li>
+        </ul>
+
+        <p>
+          Questions: <a href="mailto:adityagupta20042003@gmail.com">adityagupta20042003@gmail.com</a>
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

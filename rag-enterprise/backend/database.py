@@ -55,6 +55,11 @@ class User(Base):
     email_verification_expires_at = Column(DateTime, nullable=True)
     email_verification_attempts   = Column(Integer, default=0)
     email_verification_sent_at    = Column(DateTime, nullable=True)
+    # Legal consent audit fields
+    terms_accepted_at             = Column(DateTime, nullable=True)
+    privacy_accepted_at           = Column(DateTime, nullable=True)
+    terms_version                 = Column(String, nullable=True)
+    privacy_version               = Column(String, nullable=True)
 
 # ── DOCUMENT TABLE ─────────────────────────────────────────
 # Each uploaded PDF gets its own row
@@ -173,6 +178,10 @@ def _ensure_user_columns():
         "email_verification_expires_at": "ALTER TABLE users ADD COLUMN email_verification_expires_at TIMESTAMP",
         "email_verification_attempts": "ALTER TABLE users ADD COLUMN email_verification_attempts INTEGER DEFAULT 0",
         "email_verification_sent_at": "ALTER TABLE users ADD COLUMN email_verification_sent_at TIMESTAMP",
+        "terms_accepted_at": "ALTER TABLE users ADD COLUMN terms_accepted_at TIMESTAMP",
+        "privacy_accepted_at": "ALTER TABLE users ADD COLUMN privacy_accepted_at TIMESTAMP",
+        "terms_version": "ALTER TABLE users ADD COLUMN terms_version VARCHAR",
+        "privacy_version": "ALTER TABLE users ADD COLUMN privacy_version VARCHAR",
         # Billing columns
         "billing_cycle": "ALTER TABLE users ADD COLUMN billing_cycle VARCHAR",
         "plan_started_at": "ALTER TABLE users ADD COLUMN plan_started_at TIMESTAMP",

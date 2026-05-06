@@ -148,7 +148,7 @@ def get_or_create_google_user(db: Session, google_info: dict) -> User:
     google_picture = google_info.get("picture")
     user = User(
         id                   = str(uuid.uuid4()),
-        email                = google_info["email"],
+        email                = email,
         name                 = google_info.get("name"),
         picture              = google_picture,
         google_id            = google_info.get("sub"),

@@ -126,7 +126,9 @@ def test_user_data():
     return {
         "email": "test@example.com",
         "password": "TestPass123!",  # Meets password requirements
-        "name": "Test User"
+        "name": "Test User",
+        "accept_terms": True,
+        "accept_privacy": True,
     }
 
 
