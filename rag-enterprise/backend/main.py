@@ -35,7 +35,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 VERIFICATION_EXPIRY_MINUTES = 15
 VERIFICATION_MAX_ATTEMPTS = 5
 VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 LEGAL_TERMS_VERSION = os.getenv("LEGAL_TERMS_VERSION", "2026-04-18")
 LEGAL_PRIVACY_VERSION = os.getenv("LEGAL_PRIVACY_VERSION", "2026-04-18")
 
@@ -48,6 +48,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://rag-enterprise.vercel.app",
+        "https://docmind-rag.in",
+        "https://www.docmind-rag.in",
     ],
     allow_credentials=False,
     allow_methods=["*"],
