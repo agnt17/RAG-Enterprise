@@ -2093,13 +2093,11 @@ ADMIN_SECRET=super-secret-admin-key     # Bearer token for /admin/* endpoints
 
 ### Email
 ```bash
-EMAIL_MODE=console                      # "console" (dev) or "smtp" (prod)
+EMAIL_MODE=console                      # "console" (dev) or "resend" (prod)
 EMAIL_FROM=no-reply@yourdomain.com
-# Required when EMAIL_MODE=smtp:
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your@email.com
-SMTP_PASSWORD=app_specific_password
+# Required when EMAIL_MODE=resend:
+RESEND_API_KEY=your-resend-api-key
+RESEND_FROM_EMAIL=no-reply@yourdomain.com
 ```
 
 ## 13.2 Frontend Environment Variables

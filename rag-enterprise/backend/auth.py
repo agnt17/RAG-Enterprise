@@ -126,7 +126,7 @@ def verify_google_token(id_token_str: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
 # ── USER HELPERS ───────────────────────────────────────────
-def get_or_create_google_user(db: Session, google_info: dict) -> User:
+def get_or_create_google_user(db: Session, google_info: dict) -> tuple[User, bool]:
     from database import ProfileImageSource
     
     # Check if user already exists
@@ -143,7 +143,7 @@ def get_or_create_google_user(db: Session, google_info: dict) -> User:
         user.email_verified = True
         user.last_login = datetime.utcnow()
         db.commit()
-        return user
+        return user, False
     # Create new user from Google data
     google_picture = google_info.get("picture")
     user = User(
@@ -158,4 +158,4 @@ def get_or_create_google_user(db: Session, google_info: dict) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
-    return user
+    return user, True

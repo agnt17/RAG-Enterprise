@@ -424,16 +424,20 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
                   )}
 
                   <motion.div variants={staggerItem}>
-                    <label className={fieldLabelCls}>Email</label>
+                    <label className={fieldLabelCls}>Email address</label>
                     <input
                       name="email"
                       type="email"
-                      placeholder="you@example.com"
+                      placeholder="you@gmail.com"
                       value={form.email}
                       onChange={handle}
                       required
+                      autoComplete="email"
                       className={inputCls}
                     />
+                    <p className={`mt-1.5 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                      Use any email you can access. A personal Gmail, Yahoo, Outlook, or company inbox all work.
+                    </p>
                   </motion.div>
 
                   <motion.div variants={staggerItem}>

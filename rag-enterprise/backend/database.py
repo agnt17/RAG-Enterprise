@@ -151,6 +151,23 @@ class Payment(Base):
     created_at          = Column(DateTime, default=datetime.utcnow)
     completed_at        = Column(DateTime, nullable=True)
 
+# ── EMAIL LOG TABLE ───────────────────────────────────────
+# Tracks transactional email attempts for support and debugging
+class EmailLog(Base):
+    __tablename__ = "email_logs"
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    user_id              = Column(String, nullable=True, index=True)
+    recipient            = Column(String, nullable=False, index=True)
+    email_type           = Column(String, nullable=False)   # verification, welcome, payment_receipt
+    template_name        = Column(String, nullable=True)
+    subject              = Column(String, nullable=False)
+    provider             = Column(String, nullable=False, default="resend")
+    provider_message_id  = Column(String, nullable=True)
+    status               = Column(String, nullable=False, default="sent")  # sent, failed
+    error_message        = Column(String, nullable=True)
+    created_at           = Column(DateTime, default=datetime.utcnow, index=True)
+
 # ── DOCUMENT CHUNK TABLE ──────────────────────────────────
 # Stores raw text chunks for BM25 keyword search (hybrid retrieval)
 class DocumentChunk(Base):

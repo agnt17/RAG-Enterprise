@@ -10,7 +10,7 @@ from auth import (hash_password, verify_password, create_token,
                   get_or_create_google_user, normalize_email,
                   generate_otp_code, generate_magic_token,
                   hash_verification_value, JWT_SECRET)
-from email_service import send_verification_email
+from email_service import send_verification_email, send_welcome_email, send_payment_receipt_email
 from ingest import ingest_pdf
 from supabase_storage import (
     is_supabase_configured, ensure_buckets_exist,
@@ -155,7 +155,7 @@ def _issue_verification_challenge(user: User, db: Session) -> tuple[str, datetim
     # Build magic link
     magic_link = f"{FRONTEND_URL}/?email={user.email}&verify_token={magic_token}"
     
-    # Send email (may raise RuntimeError if SMTP not configured)
+    # Send email (provider errors are handled inside the email service)
     send_verification_email(
         email=user.email,
         name=user.name,
@@ -304,6 +304,14 @@ def verify_email(request: Request, req: VerifyEmailRequest, db: Session = Depend
     user.email_verification_attempts = 0
     user.last_login = datetime.utcnow()
     db.commit()
+
+    send_welcome_email(
+        email=user.email,
+        name=user.name,
+        login_url=FRONTEND_URL,
+        user_id=user.id,
+        db=db,
+    )
     
     token = create_token(user.id, user.email)
     return {
@@ -351,12 +359,21 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
     if not existing_user:
         _require_legal_acceptance(req.accept_terms, req.accept_privacy)
 
-    user = get_or_create_google_user(db, google_info)
+    user, is_new_user = get_or_create_google_user(db, google_info)
 
     # Capture explicit acceptance for new accounts and optional re-consent for existing users.
     if req.accept_terms and req.accept_privacy:
         _stamp_legal_acceptance(user)
         db.commit()
+
+    if is_new_user:
+        send_welcome_email(
+            email=user.email,
+            name=user.name,
+            login_url=FRONTEND_URL,
+            user_id=user.id,
+            db=db,
+        )
 
     token = create_token(user.id, user.email)
     return {"token": token, "user": {"email": user.email, "name": user.name, "picture": user.picture}}
@@ -1346,6 +1363,22 @@ async def verify_payment(
     current_user.plan_expires_at = datetime.fromisoformat(expires_raw)
     current_user.cancelled_at = None  # Clear any previous cancellation
     db.commit()
+
+    send_payment_receipt_email(
+        email=current_user.email,
+        name=current_user.name,
+        plan=payment.plan,
+        billing_cycle=payment.billing_cycle,
+        amount=payment.amount,
+        base_amount=payment.base_amount,
+        discount_amount=payment.discount_amount,
+        gst_amount=payment.gst_amount,
+        payment_id=payment.id,
+        razorpay_payment_id=payment.razorpay_payment_id,
+        invoice_date=payment.completed_at.isoformat() if payment.completed_at else now.isoformat(),
+        user_id=current_user.id,
+        db=db,
+    )
     
     return {
         "success": True,

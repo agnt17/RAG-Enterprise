@@ -128,11 +128,9 @@ ADMIN_SECRET=your-admin-secret
 # Email verification delivery
 EMAIL_MODE=console
 EMAIL_FROM=no-reply@yourdomain.com
-# Required when EMAIL_MODE=smtp
-SMTP_HOST=smtp.yourprovider.com
-SMTP_PORT=587
-SMTP_USER=your-smtp-username
-SMTP_PASSWORD=your-smtp-password
+# Required when EMAIL_MODE=resend
+RESEND_API_KEY=your-resend-api-key
+RESEND_FROM_EMAIL=no-reply@yourdomain.com
 ```
 
 For Hindi OCR fallback, install Tesseract OCR and Hindi language data on your host machine.
