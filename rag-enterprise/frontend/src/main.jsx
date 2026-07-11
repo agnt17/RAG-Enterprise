@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { GoogleOAuthProvider } from '@react-oauth/google'
+import { Analytics } from '@vercel/analytics/react'
 import './index.css'
 import AppRouter from './AppRouter.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
@@ -10,6 +11,7 @@ createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
         <AppRouter />
+        <Analytics />
       </GoogleOAuthProvider>
     </ErrorBoundary>
   </StrictMode>
