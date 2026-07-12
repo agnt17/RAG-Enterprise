@@ -28,3 +28,4 @@ slowapi
 supabase
 razorpay
 rank_bm25
+openpyxl

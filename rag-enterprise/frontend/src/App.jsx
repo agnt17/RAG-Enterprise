@@ -3,7 +3,7 @@ import axios from "axios"
 import { motion, AnimatePresence } from "framer-motion"
 import { FileText } from "lucide-react"
 import AuthPage from "./AuthPage"
-import { ToastContainer, toast } from "./Toast"
+import { toast } from "./Toast"
 
 import { API } from "./lib/api"
 import { themes } from "./lib/themes"
@@ -500,7 +500,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <ToastContainer resolvedTheme={!appLoading && !token ? "dark" : resolvedTheme} />
     </>
   )
 }

@@ -8,3 +8,6 @@ frontend/.env
 RAZORPAY_SETUP.md
 backend/.venv/
 backend/.python-version
+backend/bug-reports.xlsx
+backend/google-service-account.json
+backend/~$bug-reports.xlsx

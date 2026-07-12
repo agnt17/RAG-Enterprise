@@ -209,10 +209,10 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
     : "w-full rounded-xl border border-slate-300 bg-white/95 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all duration-200 focus:border-sky-500 focus:shadow-[0_0_0_4px_rgba(2,132,199,0.13)] sm:px-4 sm:py-3 sm:text-[15px]"
 
   const cardCls = isDark
-    ? "auth-pane-scroll relative flex h-full flex-col overflow-y-visible rounded-3xl border border-white/12 bg-slate-950/70 p-4 backdrop-blur-2xl shadow-[0_24px_90px_rgba(2,8,23,0.68)] sm:p-6 lg:overflow-y-auto lg:p-7"
-    : "auth-pane-scroll relative flex h-full flex-col overflow-y-visible rounded-3xl border border-slate-200/90 bg-white/90 p-4 backdrop-blur-2xl shadow-[0_24px_90px_rgba(15,23,42,0.18)] sm:p-6 lg:overflow-y-auto lg:p-7"
+    ? "auth-pane-scroll relative flex h-full flex-col overflow-y-visible rounded-3xl border border-white/12 bg-slate-950/70 p-4 backdrop-blur-2xl shadow-[0_24px_90px_rgba(2,8,23,0.68)] sm:p-6 lg:p-7"
+    : "auth-pane-scroll relative flex h-full flex-col overflow-y-visible rounded-3xl border border-slate-200/90 bg-white/90 p-4 backdrop-blur-2xl shadow-[0_24px_90px_rgba(15,23,42,0.18)] sm:p-6 lg:p-7"
 
-  const paneHeightCls = "h-auto lg:h-[760px]"
+  const paneHeightCls = "h-auto"
 
   const titleCls = isDark ? "text-3xl font-semibold leading-tight text-white sm:text-[34px]" : "text-3xl font-semibold leading-tight text-slate-900 sm:text-[34px]"
   const subtitleCls = isDark ? "mt-1 text-sm text-slate-400" : "mt-1 text-sm text-slate-500"
@@ -230,7 +230,7 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
   const modeTabBase = "rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors duration-150 sm:px-3 sm:text-sm"
   const modeTabActive = isDark ? "bg-cyan-400 text-slate-950" : "bg-sky-600 text-white"
   const modeTabIdle = isDark ? "text-slate-300 hover:bg-white/8" : "text-slate-600 hover:bg-white"
-  const googleWrapCls = isDark ? "flex justify-center overflow-hidden rounded-xl border border-white/12 bg-white/5 p-2" : "flex justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2"
+  const googleWrapCls = isDark ? "flex w-full justify-center rounded-xl border border-white/12 bg-white/5 p-2 sm:p-3" : "flex w-full justify-center rounded-xl border border-slate-200 bg-slate-50 p-2 sm:p-3"
   const infoBoxCls = isDark ? "rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200" : "rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-700"
   const errorBoxCls = isDark ? "rounded-lg border border-red-500/25 bg-red-500/12 px-3 py-2 text-xs text-red-200" : "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
 
@@ -331,9 +331,6 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
 
             <div className="mb-4 flex items-start justify-between gap-3 sm:gap-4">
               <div>
-                <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-blue-400 to-cyan-400 text-lg text-slate-950 shadow-lg shadow-cyan-500/30 sm:h-12 sm:w-12 sm:text-xl">
-                  ⬡
-                </div>
                 <h1 className={titleCls}>DocMind AI</h1>
                 <AnimatePresence mode="wait">
                   <motion.p
@@ -348,10 +345,6 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
                   </motion.p>
                 </AnimatePresence>
               </div>
-
-              <span className={isDark ? "shrink-0 rounded-full border border-white/12 bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-200 sm:px-2.5" : "shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-700 sm:px-2.5"}>
-                {mode === "verify" ? "Step 2" : "Step 1"}
-              </span>
             </div>
 
             {mode !== "verify" && (
@@ -435,9 +428,6 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
                       autoComplete="email"
                       className={inputCls}
                     />
-                    <p className={`mt-1.5 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
-                      Use any email you can access. A personal Gmail, Yahoo, Outlook, or company inbox all work.
-                    </p>
                   </motion.div>
 
                   <motion.div variants={staggerItem}>
@@ -465,10 +455,12 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
                         I agree to the{" "}
                         <a href="/legal/terms-of-service.html" target="_blank" rel="noreferrer" className={footerLink}>
                           Terms of Service
-                        </a>{" "}
-                        and{" "}
+                        </a>,{" "}
                         <a href="/legal/privacy-policy.html" target="_blank" rel="noreferrer" className={footerLink}>
                           Privacy Policy
+                        </a>{" "}and{" "}
+                        <a href="/legal/ai-transparency.html" target="_blank" rel="noreferrer" className={footerLink}>
+                          AI Notice
                         </a>
                         .
                       </span>
@@ -606,21 +598,6 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
                   </button>
                 </>
               )}
-            </p>
-
-            <p className={`${footerText} mt-2 leading-relaxed sm:px-1`}>
-              By continuing, you agree to our{" "}
-              <a href="/legal/terms-of-service.html" target="_blank" rel="noreferrer" className={footerLink}>
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a href="/legal/privacy-policy.html" target="_blank" rel="noreferrer" className={footerLink}>
-                Privacy Policy
-              </a>
-              .{" "}
-              <a href="/legal/ai-transparency.html" target="_blank" rel="noreferrer" className={footerLink}>
-                AI Notice
-              </a>
             </p>
           </motion.div>
         </motion.section>
