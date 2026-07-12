@@ -3,11 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import App from "./App"
 import SettingsPage from "./SettingsPage"
 import HelpPage from "./HelpPage"
+import ReportBugPage from "./ReportBugPage"
 import UpgradePlanPage from "./UpgradePlanPage"
 import PremiumWelcomePage from "./PremiumWelcomePage"
 import NotFoundPage from "./NotFoundPage"
 import ServerErrorPage from "./ServerErrorPage"
 import MeshBackground from "./MeshBackground"
+import { ToastContainer } from "./Toast"
 
 function getStoredThemeMode() {
   return localStorage.getItem("theme") || "system"
@@ -63,12 +65,14 @@ export default function AppRouter() {
         <Route path="/" element={<App />} />
         <Route path="/settings" element={<SettingsPageWrapper resolvedTheme={resolvedTheme} />} />
         <Route path="/help" element={<HelpPageWrapper resolvedTheme={resolvedTheme} />} />
+        <Route path="/report-bug" element={<ReportBugPageWrapper resolvedTheme={resolvedTheme} />} />
         <Route path="/upgrade" element={<UpgradePlanPageWrapper resolvedTheme={resolvedTheme} />} />
         <Route path="/welcome" element={<PremiumWelcomePageWrapper resolvedTheme={resolvedTheme} />} />
         <Route path="/error" element={<ServerErrorPage resolvedTheme={resolvedTheme} />} />
         <Route path="*" element={<NotFoundPage resolvedTheme={resolvedTheme} />} />
       </Routes>
       </BrowserRouter>
+      <ToastContainer resolvedTheme={resolvedTheme} />
     </>
   )
 }
@@ -111,6 +115,40 @@ function SettingsPageWrapper({ resolvedTheme }) {
 
 function HelpPageWrapper({ resolvedTheme }) {
   return <HelpPage resolvedTheme={resolvedTheme} />
+}
+
+function ReportBugPageWrapper({ resolvedTheme }) {
+  const token = localStorage.getItem("token")
+
+  const [user, setUser] = React.useState(null)
+
+  React.useEffect(() => {
+    const fetchUser = async () => {
+      if (!token) return
+      try {
+        const API = (
+          import.meta.env.PROD
+            ? import.meta.env.VITE_API_URL
+            : (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000")
+        )?.replace(/\/$/, "")
+
+        const res = await fetch(`${API}/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        const data = await res.json()
+        setUser(data)
+      } catch (err) {
+        console.error("Failed to fetch user:", err)
+      }
+    }
+    fetchUser()
+  }, [token])
+
+  if (!token) {
+    return <Navigate to="/" replace />
+  }
+
+  return <ReportBugPage resolvedTheme={resolvedTheme} user={user} token={token} />
 }
 
 function UpgradePlanPageWrapper({ resolvedTheme }) {

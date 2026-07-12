@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { Settings, HelpCircle, PlusCircle, LogOut, Sun, Moon, Monitor, Check, ChevronRight } from "lucide-react"
+import { Settings, HelpCircle, PlusCircle, LogOut, Sun, Moon, Monitor, Check, ChevronRight, BugIcon } from "lucide-react"
 import { btnSubtle, ease } from "./lib/animations"
 
 export default function ProfileDropdown({ user, onLogout, resolvedTheme = "dark", themeMode, setThemeMode }) {
@@ -70,6 +70,7 @@ export default function ProfileDropdown({ user, onLogout, resolvedTheme = "dark"
     { label: "Settings",     icon: <Settings   size={16} strokeWidth={1.5} />, action: () => go("/settings") },
     { label: "Get help",     icon: <HelpCircle size={16} strokeWidth={1.5} />, action: () => go("/help") },
     { label: "Upgrade plan", icon: <PlusCircle size={16} strokeWidth={1.5} />, action: () => go("/upgrade") },
+    { label: "Report a bug",  icon: <BugIcon size={16} strokeWidth={1.5} />, action: () => go("/report-bug") },
   ]
 
   const itemCls = `w-full flex items-center gap-3 px-3 py-2 text-sm transition-colors duration-100 cursor-pointer
