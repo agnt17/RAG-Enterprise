@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Settings, HelpCircle, PlusCircle, LogOut, Sun, Moon, Monitor, Check, ChevronRight, BugIcon } from "lucide-react"
 import { btnSubtle, ease } from "./lib/animations"
 
+const BUG_REPORT_FORM_URL = "https://forms.gle/S43zCLiQEQDZyQAs8"
+
 export default function ProfileDropdown({ user, onLogout, resolvedTheme = "dark", themeMode, setThemeMode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
@@ -56,6 +58,11 @@ export default function ProfileDropdown({ user, onLogout, resolvedTheme = "dark"
   }
 
   const go = (path) => { setIsOpen(false); setShowThemeMenu(false); navigate(path) }
+  const openBugForm = () => {
+    setIsOpen(false)
+    setShowThemeMenu(false)
+    window.open(BUG_REPORT_FORM_URL, "_blank", "noopener,noreferrer")
+  }
   const logout = () => { setIsOpen(false); setShowThemeMenu(false); onLogout(); navigate("/") }
 
   const isDark = resolvedTheme === "dark"
@@ -70,7 +77,7 @@ export default function ProfileDropdown({ user, onLogout, resolvedTheme = "dark"
     { label: "Settings",     icon: <Settings   size={16} strokeWidth={1.5} />, action: () => go("/settings") },
     { label: "Get help",     icon: <HelpCircle size={16} strokeWidth={1.5} />, action: () => go("/help") },
     { label: "Upgrade plan", icon: <PlusCircle size={16} strokeWidth={1.5} />, action: () => go("/upgrade") },
-    { label: "Report a bug",  icon: <BugIcon size={16} strokeWidth={1.5} />, action: () => go("/report-bug") },
+    { label: "Report a bug",  icon: <BugIcon size={16} strokeWidth={1.5} />, action: openBugForm },
   ]
 
   const itemCls = `w-full flex items-center gap-3 px-3 py-2 text-sm transition-colors duration-100 cursor-pointer

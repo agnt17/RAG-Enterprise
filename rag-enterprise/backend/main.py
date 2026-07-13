@@ -21,13 +21,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from sqlalchemy import and_
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from openpyxl import Workbook, load_workbook
-from google.auth.transport.requests import Request as GoogleAuthRequest
-from google.oauth2 import service_account
-from pathlib import Path
-from threading import Lock
 import os, uuid, json, tempfile
-import requests as http_requests
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -44,35 +38,6 @@ VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 LEGAL_TERMS_VERSION = os.getenv("LEGAL_TERMS_VERSION", "2026-04-18")
 LEGAL_PRIVACY_VERSION = os.getenv("LEGAL_PRIVACY_VERSION", "2026-04-18")
-BUG_REPORTS_PATH = Path(__file__).resolve().parent / "bug-reports.xlsx"
-BUG_REPORTS_LOCK = Lock()
-BUG_REPORTS_SPREADSHEET_ID = os.getenv("BUG_REPORTS_SPREADSHEET_ID", "").strip()
-BUG_REPORTS_SHEET_NAME = os.getenv("BUG_REPORTS_SHEET_NAME", "Sheet1").strip() or "Sheet1"
-BUG_REPORTS_SPREADSHEET_URL = (
-    f"https://docs.google.com/spreadsheets/d/{BUG_REPORTS_SPREADSHEET_ID}/edit"
-    if BUG_REPORTS_SPREADSHEET_ID
-    else None
-)
-GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
-GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-BUG_REPORT_COLUMNS = [
-    "submitted_at",
-    "report_id",
-    "user_id",
-    "name",
-    "email",
-    "plan",
-    "route",
-    "category",
-    "severity",
-    "title",
-    "description",
-    "steps_to_reproduce",
-    "browser",
-    "device",
-    "additional_context",
-]
-
 create_tables()
 ensure_user_columns()  # Ensure new columns exist
 ensure_buckets_exist()  # Ensure Supabase storage buckets exist
@@ -243,101 +208,6 @@ def _stamp_legal_acceptance(user: User, accepted_at: datetime | None = None) -> 
     user.terms_version = LEGAL_TERMS_VERSION
     user.privacy_version = LEGAL_PRIVACY_VERSION
 
-
-def _load_bug_report_service_account() -> service_account.Credentials | None:
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-
-    if GOOGLE_SERVICE_ACCOUNT_JSON:
-        credentials_info = json.loads(GOOGLE_SERVICE_ACCOUNT_JSON)
-        return service_account.Credentials.from_service_account_info(credentials_info, scopes=scopes)
-
-    if GOOGLE_SERVICE_ACCOUNT_FILE:
-        return service_account.Credentials.from_service_account_file(GOOGLE_SERVICE_ACCOUNT_FILE, scopes=scopes)
-
-    return None
-
-
-def _ensure_bug_report_header_row(credentials: service_account.Credentials) -> None:
-    header_range = f"{BUG_REPORTS_SHEET_NAME}!A1:Z1"
-    endpoint = (
-        f"https://sheets.googleapis.com/v4/spreadsheets/{BUG_REPORTS_SPREADSHEET_ID}/values/"
-        f"{header_range}"
-    )
-    response = http_requests.get(endpoint, headers={"Authorization": f"Bearer {credentials.token}"}, timeout=30)
-    response.raise_for_status()
-    values = response.json().get("values", [])
-    if values:
-        return
-
-    update_endpoint = (
-        f"https://sheets.googleapis.com/v4/spreadsheets/{BUG_REPORTS_SPREADSHEET_ID}/values/"
-        f"{BUG_REPORTS_SHEET_NAME}!A1?valueInputOption=USER_ENTERED"
-    )
-    update_response = http_requests.put(
-        update_endpoint,
-        headers={
-            "Authorization": f"Bearer {credentials.token}",
-            "Content-Type": "application/json",
-        },
-        json={"values": [BUG_REPORT_COLUMNS]},
-        timeout=30,
-    )
-    update_response.raise_for_status()
-
-
-def _append_bug_report_to_google_sheet(row: dict) -> None:
-    credentials = _load_bug_report_service_account()
-    if not credentials:
-        raise RuntimeError("Google Sheets credentials are not configured.")
-
-    credentials.refresh(GoogleAuthRequest())
-    _ensure_bug_report_header_row(credentials)
-
-    append_endpoint = (
-        f"https://sheets.googleapis.com/v4/spreadsheets/{BUG_REPORTS_SPREADSHEET_ID}/values/"
-        f"{BUG_REPORTS_SHEET_NAME}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS"
-    )
-    response = http_requests.post(
-        append_endpoint,
-        headers={
-            "Authorization": f"Bearer {credentials.token}",
-            "Content-Type": "application/json",
-        },
-        json={"values": [[row.get(column, "") for column in BUG_REPORT_COLUMNS]]},
-        timeout=30,
-    )
-    response.raise_for_status()
-
-
-def _append_bug_report_row(row: dict) -> dict:
-    if BUG_REPORTS_SPREADSHEET_ID:
-        try:
-            _append_bug_report_to_google_sheet(row)
-            return {
-                "storage_backend": "google_sheets",
-            }
-        except Exception:
-            pass
-
-    BUG_REPORTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    with BUG_REPORTS_LOCK:
-        if BUG_REPORTS_PATH.exists():
-            workbook = load_workbook(BUG_REPORTS_PATH)
-            sheet = workbook.active
-            if sheet.max_row == 0:
-                sheet.append(BUG_REPORT_COLUMNS)
-        else:
-            workbook = Workbook()
-            sheet = workbook.active
-            sheet.title = "Bug Reports"
-            sheet.append(BUG_REPORT_COLUMNS)
-
-        sheet.append([row.get(column, "") for column in BUG_REPORT_COLUMNS])
-        workbook.save(BUG_REPORTS_PATH)
-        return {
-            "storage_backend": "local_workbook",
-        }
 
 # ── Auth Endpoints ─────────────────────────────────────────
 @app.post("/register")
@@ -553,42 +423,6 @@ def get_me(current_user: User = Depends(get_current_user), db: Session = Depends
         "privacy_version":      current_user.privacy_version,
     }
 
-
-@app.post("/bug-reports")
-def submit_bug_report(
-    req: BugReportRequest,
-    current_user: User = Depends(get_current_user),
-):
-    """Save a bug report to the spreadsheet used by the support team."""
-    row = {
-        "submitted_at": datetime.utcnow().isoformat(),
-        "report_id": str(uuid.uuid4()),
-        "user_id": current_user.id,
-        "name": req.name or current_user.name or "",
-        "email": str(req.email or current_user.email or ""),
-        "plan": current_user.plan,
-        "route": req.route or "/report-bug",
-        "category": req.category,
-        "severity": req.severity,
-        "title": req.title,
-        "description": req.description,
-        "steps_to_reproduce": req.steps_to_reproduce or "",
-        "browser": req.browser or "",
-        "device": req.device or "",
-        "additional_context": req.additional_context or "",
-    }
-
-    try:
-        storage_info = _append_bug_report_row(row)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Unable to save bug report right now.") from exc
-
-    return {
-        "success": True,
-        "message": "Bug report saved successfully.",
-        "report_id": row["report_id"],
-        **storage_info,
-    }
 
 @app.get("/usage")
 def get_usage(
