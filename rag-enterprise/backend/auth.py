@@ -122,7 +122,8 @@ def verify_google_token(id_token_str: str) -> dict:
             os.getenv("GOOGLE_CLIENT_ID")
         )
         return info  # contains: email, name, picture, sub (google user id)
-    except Exception:
+    except Exception as e:
+        print(f"GOOGLE TOKEN VERIFY FAILED: {e}")
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
 # ── USER HELPERS ───────────────────────────────────────────
