@@ -202,9 +202,11 @@ export default function AuthPage({ onLogin, resolvedTheme = "dark" }) {
       setMode("register")
       setInfo("No account found for this Google email. Accept the terms below, then click Sign up with Google to finish creating your account.")
       toast.info("Please create an account first.")
+      setLoading(false)
     } else {
       setError("Google sign-in failed. Try again.")
       toast.error("Google sign-in failed. Try again.")
+      setLoading(false)
     }
   }
 }
