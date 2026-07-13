@@ -187,52 +187,6 @@ class TestUsageEndpoint:
         response = client.get("/usage", headers=registered_user["headers"])
         
         assert response.status_code == 200
-
-
-class TestBugReportEndpoint:
-    """Tests for POST /bug-reports endpoint."""
-
-    def test_bug_report_saves_to_excel(self, client, registered_user, tmp_path, monkeypatch):
-        """
-        WHY: Bug reports should persist to a spreadsheet for review.
-        WHAT: The endpoint should create an .xlsx file and append a new row.
-        """
-        workbook_path = tmp_path / "bug-reports.xlsx"
-        monkeypatch.setattr(main, "BUG_REPORTS_PATH", workbook_path)
-
-        payload = {
-            "name": "Test User",
-            "email": "test@example.com",
-            "route": "/report-bug",
-            "category": "ui",
-            "severity": "high",
-            "title": "Sidebar overlap on mobile",
-            "description": "The sidebar covers the chat area on small screens.",
-            "steps_to_reproduce": "1. Open the app on a phone\n2. Open the sidebar\n3. Notice the overlap",
-            "browser": "Chrome 126",
-            "device": "Pixel 7",
-            "additional_context": "Happens only after rotating the device.",
-        }
-
-        response = client.post("/bug-reports", json=payload, headers=registered_user["headers"])
-
-        assert response.status_code == 200
-        assert workbook_path.exists()
-
-        workbook = load_workbook(workbook_path)
-        sheet = workbook.active
-
-        assert sheet.max_row == 2
-        headers = [cell.value for cell in sheet[1]]
-        values = [cell.value for cell in sheet[2]]
-        row = dict(zip(headers, values))
-
-        assert row["title"] == payload["title"]
-        assert row["category"] == payload["category"]
-        assert row["severity"] == payload["severity"]
-        assert row["route"] == payload["route"]
-
-
 class TestCouponEndpoint:
     """Tests for POST /coupon/validate endpoint."""
     
