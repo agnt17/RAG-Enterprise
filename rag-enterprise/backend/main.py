@@ -370,8 +370,17 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
     google_info = verify_google_token(req.token)
     google_email = normalize_email(google_info["email"])
     existing_user = db.query(User).filter(User.email == google_email).first()
+
     if not existing_user:
-        _require_legal_acceptance(req.accept_terms, req.accept_privacy)
+        if not (req.accept_terms and req.accept_privacy):
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "ACCOUNT_NOT_FOUND",
+                    "message": "No account found for this Google email. Please create an account first.",
+                    "email": google_email,
+                },
+            )
 
     user, is_new_user = get_or_create_google_user(db, google_info)
 
